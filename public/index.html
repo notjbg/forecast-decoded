@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dewpoint — NWS Forecasts, Decoded</title>
+    <title>Plaincast — NWS Forecasts, Decoded</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -300,7 +300,7 @@
 
 <div class="header">
     <div class="header-row">
-        <h1>Dewpoint</h1>
+        <h1>Plaincast</h1>
         <select id="office-select">
             <option value="LOX">Los Angeles / Oxnard (LOX)</option>
             <option value="SGX">San Diego (SGX)</option>
@@ -313,7 +313,7 @@
         </select>
     </div>
     <div class="issue-time" id="issue-time"></div>
-    <p class="explainer">Area Forecast Discussions are the real forecasts — written 3–4 times daily by NWS meteorologists reading the models and interpreting what they mean for your area. They offer far deeper insight than any weather app, but they're written in dense meteorological shorthand. Dewpoint translates them into plain English, side by side with the original.</p>
+    <p class="explainer">Area Forecast Discussions are the real forecasts — written 3–4 times daily by NWS meteorologists reading the models and interpreting what they mean for your area. They offer far deeper insight than any weather app, but they're written in dense meteorological shorthand. Plaincast translates them into plain English, side by side with the original.</p>
 </div>
 
 <div class="takeaway" id="takeaway-container" style="display:none">
@@ -1164,7 +1164,7 @@ async function fetchAFD(office) {
 
     try {
         const listRes = await fetch(`https://api.weather.gov/products/types/AFD/locations/${office}`, {
-            headers: { 'User-Agent': 'ForecastDecoded/1.0 (jonahberg.com)' }
+            headers: { 'User-Agent': 'Plaincast/1.0 (plaincast.live)' }
         });
         if (!listRes.ok) throw new Error(`API error: ${listRes.status} ${listRes.statusText}`);
         const listData = await listRes.json();
@@ -1173,7 +1173,7 @@ async function fetchAFD(office) {
 
         const prodUrl = latest['@id'] || `https://api.weather.gov/products/${latest.id}`;
         const prodRes = await fetch(prodUrl, {
-            headers: { 'User-Agent': 'ForecastDecoded/1.0 (jonahberg.com)' }
+            headers: { 'User-Agent': 'Plaincast/1.0 (plaincast.live)' }
         });
         if (!prodRes.ok) throw new Error(`Product fetch error: ${prodRes.status}`);
         const prodData = await prodRes.json();
