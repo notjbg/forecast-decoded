@@ -912,6 +912,29 @@ function translateToPlainEnglish(text) {
     t = t.replace(/\bPZ\.\s*/g, '');            // Strip marine zone prefix "PZ."
     t = t.trim();
 
+    // ─── Bold pass: make key info skimmable ─────────────────────────
+    // Days of week and timeframes
+    t = t.replace(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/g, '<strong>$1</strong>');
+    t = t.replace(/\b(tonight|tonight through \w+|this morning|this afternoon|this evening|overnight)\b/gi, '<strong>$1</strong>');
+    t = t.replace(/\b(today)\b/gi, '<strong>$1</strong>');
+
+    // Temperatures and measurements
+    t = t.replace(/(\d{1,3})\s*(?:degrees?|°)\s*(?:F|fahrenheit)?/gi, '<strong>$1°</strong>');
+    t = t.replace(/\b(\d{1,2}(?:\.\d+)?(?:\s*-\s*\d{1,2}(?:\.\d+)?)?)\s*(?:inches?|")\b/gi, '<strong>$1"</strong>');
+    t = t.replace(/\b(\d{1,3})\s*(?:mph|knots?)\b/gi, '<strong>$1 mph</strong>');
+    t = t.replace(/\b(\d{1,2}(?:\s*-\s*\d{1,2})?)\s*(?:feet|ft)\b/gi, '<strong>$1 ft</strong>');
+
+    // Hazard/warning language
+    t = t.replace(/\b(severe thunderstorms?|flash flood(?:ing)?|debris flows?|damaging winds?|heavy (?:mountain )?snow|high surf|coastal flood(?:ing)?|thunderstorms?)\b/gi, '<strong>$1</strong>');
+    t = t.replace(/\b(small craft advisory|gale warning|winter storm (?:watch|warning)|flood watch|wind advisory|high wind watch|high surf advisory|beach hazards? statement)\b/gi, '<strong>$1</strong>');
+
+    // Rainfall amounts like "1-2.5 inches" or "a half and one inch per hour"
+    t = t.replace(/(\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?)\s*(?:inches|inch)\b/gi, '<strong>$1 inches</strong>');
+
+    // Clean up any double-bolded from overlapping matches
+    t = t.replace(/<strong><strong>/g, '<strong>');
+    t = t.replace(/<\/strong><\/strong>/g, '</strong>');
+
     // Split into blocks on double newlines
     const blocks = t.split(/\n\s*\n+/).filter(b => b.trim());
 
