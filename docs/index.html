@@ -273,17 +273,86 @@
             color: #44403c;
         }
         .alert-link {
-            color: inherit;
-            text-decoration: none;
+            color: #1a6bb5;
+            text-decoration: underline;
+            text-decoration-color: rgba(26, 107, 181, 0.4);
+            text-underline-offset: 2px;
             display: block;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font: inherit;
+            padding: 0;
+            text-align: left;
+            width: 100%;
         }
         .alert-link:hover {
-            text-decoration: underline;
+            text-decoration-color: #1a6bb5;
         }
-        .alert-link::after {
-            content: ' ↗';
-            font-size: 0.7rem;
-            opacity: 0.5;
+        .alert-link:focus-visible {
+            outline: 2px solid var(--blue);
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
+
+        /* Alert detail modal */
+        .alert-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .alert-modal-overlay.open {
+            display: flex;
+        }
+        .alert-modal {
+            background: #fff;
+            border-radius: 10px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 2rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            position: relative;
+            font-family: var(--serif);
+        }
+        .alert-modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+            line-height: 1;
+        }
+        .alert-modal-close:hover { color: #222; }
+        .alert-modal h3 {
+            margin: 0 0 0.5rem;
+            font-size: 1.2rem;
+            line-height: 1.3;
+        }
+        .alert-modal .alert-meta {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 1rem;
+            font-family: var(--sans);
+        }
+        .alert-modal .alert-body {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        .alert-modal .alert-instruction {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e0e0e0;
+            font-weight: 500;
         }
 
         /* Annotated column */
@@ -325,7 +394,7 @@
             white-space: normal;
             font-weight: 400;
         }
-        .jargon:hover .tip { display: block; }
+        .jargon:hover .tip, .jargon.tip-open .tip { display: block; }
 
         /* Loading / error */
         .loading {
@@ -714,6 +783,8 @@ const OFFICE_TIMEZONES = {
     'BOU': 'America/Denver',
 };
 let currentOffice = 'LOX';
+let fetchGeneration = 0; // race condition guard for rapid office switching
+let issueTimeDate = null; // for auto-updating "X ago"
 
 // Office → state for alerts API
 const OFFICE_STATES = {
@@ -753,13 +824,18 @@ async function fetchAlerts(office) {
             if (senderMatch && !(p.senderName || '').includes(senderMatch)) continue;
             const event = p.event;
             if (!alertMap[event]) {
-                // Build detail URL from alert ID
-                const oid = (f.id || '').split('/').pop();
-                alertMap[event] = `https://alerts.weather.gov/#?id=${oid}`;
+                alertMap[event] = {
+                    headline: p.headline || event,
+                    description: p.description || '',
+                    instruction: p.instruction || '',
+                    severity: p.severity || '',
+                    expires: p.expires || '',
+                    areaDesc: p.areaDesc || ''
+                };
             }
         }
         return alertMap;
-    } catch { return {}; }
+    } catch(e) { console.warn('Alert fetch failed', e); return {}; }
 }
 
 let currentAlerts = {};
@@ -791,7 +867,7 @@ function parseSections(text) {
     for (const line of lines) {
         // Check for section headers: .SYNOPSIS..., .SHORT TERM (TDY-TUE)..., .LOX WATCHES/WARNINGS/ADVISORIES...
         // Try with office prefix first (3-letter like LOX, SGX)
-        const headerMatch = line.match(/^\.(?:LOX|SGX|HNX|VEF|MTR|SEW|PQR|OKX|LOT|HGX|PSR|PHI|FWD|EWX|MFL|FFC|LWX|BOX|BOU)\s+([A-Z\s\/]+?)(?:\s*\([^)]*\))?\s*\.{2,3}/)
+        const headerMatch = line.match(/^\.[A-Z]{3}\s+([A-Z\s\/]+?)(?:\s*\([^)]*\))?\s*\.{2,3}/)
             || line.match(/^\.([A-Z\s\/]+?)(?:\s*\([^)]*\))?\s*\.{2,3}/);
         if (headerMatch) {
             if (currentKey) {
@@ -908,7 +984,7 @@ function translateToPlainEnglish(text) {
         [/\bSLO\b/g, 'San Luis Obispo'],
         [/\bSBA\b/g, 'Santa Barbara'],
         [/\bVTA\b/g, 'Ventura'],
-        [/\bLA\b/g, 'Los Angeles'],
+        [/\bLA\s+(?:county|basin|area|metro|coast|mountains?|foothills|valleys?)\b/gi, (m) => 'Los Angeles' + m.slice(2)],
 
         // Storm & dynamics
         [/\bTSTMS?\b/gi, 'thunderstorms'],
@@ -946,7 +1022,7 @@ function translateToPlainEnglish(text) {
         [/\bCLR\b/g, 'clear skies'],
         [/\bAGL\b/g, 'above ground'],
         [/\bMSL\b/g, 'above sea level'],
-        [/\bFL\b/g, 'flight level'],
+        [/\bFL\s*(\d{2,3})\b/g, 'flight level $1'],
 
         // Sky conditions with optional height numbers: BKN015 → broken clouds at 1,500 ft
         [/\bBKN(\d{3})\b/g, (_, h) => `broken clouds at ${parseInt(h)*100} ft`],
@@ -980,16 +1056,16 @@ function translateToPlainEnglish(text) {
         [/\bKWJF\b/g, 'Lancaster'],
 
         // Phenomena
-        [/\bAR\b/g, 'atmospheric river'],
+        [/\b(?:an?\s+)?AR\b(?=\s+(?:event|will|is|was|pattern|plume|moving|hitting|arriving|developing|tapping))/g, 'atmospheric river'],
         [/\bIVT\b/g, 'moisture transport'],
         [/\bPDS\b/g, 'particularly dangerous'],
         [/\bSWE\b/g, 'snow water content'],
 
         // Previously leaked abbreviations
-        [/\bLI\b/g, 'lifted index'],
+        [/\bLI\s+(?:values?|of|around|near|is|will)\b/gi, (m) => 'lifted index' + m.slice(2)],
         [/\bOFB\b/g, 'outflow boundary'],
         [/\bFROPA\b/g, 'frontal passage'],
-        [/\bGS\b/g, 'ground stop'],
+        // GS only in aviation context — handled via glossary tooltip only
         [/\bUTC\b/g, 'UTC'],
         [/\bWFO\b/g, 'Weather Forecast Office'],
         [/\bCWA\b/g, 'forecast area'],
@@ -1017,9 +1093,11 @@ function translateToPlainEnglish(text) {
         try {
             const local = utcDate.toLocaleString('en-US', { hour: 'numeric', minute: utcMin > 0 ? '2-digit' : undefined, timeZone: tz, timeZoneName: 'short' });
             return local;
-        } catch {
-            // Fallback to simple offset
-            const offset = tz.includes('Eastern') ? -5 : tz.includes('Central') ? -6 : tz.includes('Mountain') ? -7 : -8;
+        } catch(e) {
+            console.warn('Timezone conversion failed', e);
+            // Fallback: use IANA zone to determine standard offset
+            const stdOffsets = { 'America/New_York': -5, 'America/Chicago': -6, 'America/Denver': -7, 'America/Phoenix': -7, 'America/Los_Angeles': -8 };
+            const offset = stdOffsets[tz] || -8;
             let localHr = (utcHour + offset + 24) % 24;
             const ampm = localHr >= 12 ? 'PM' : 'AM';
             const hr12 = localHr === 0 ? 12 : localHr > 12 ? localHr - 12 : localHr;
@@ -1039,9 +1117,7 @@ function translateToPlainEnglish(text) {
         return m.charAt(0) + m.slice(1).toLowerCase();
     });
 
-    // Remove "ern" that got left as standalone (from "eastern" abbrev collision with words ending in "ern")
-    // Actually, let's be more careful — only expand \bern\b when it's standalone
-    t = t.replace(/\bern\b/gi, 'eastern');
+    // "ern" catch-all removed — too aggressive, collides with English words
 
     // Clean up artifacts from stripped content
     t = t.replace(/\.\s*\.\s*/g, '. ');       // ". ." → "."
@@ -1121,13 +1197,15 @@ function annotateText(text) {
 
     // Use placeholder tokens to prevent nested replacement
     const placeholders = [];
+    let jargonId = 0;
     for (const key of keys) {
         const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`\\b${escaped}\\b`, 'g');
         t = t.replace(regex, (match) => {
             const idx = placeholders.length;
+            const tipId = `jargon-tip-${jargonId++}`;
             const tipText = GLOSSARY[key].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            placeholders.push(`<span class="jargon">${match}<span class="tip">${tipText}</span></span>`);
+            placeholders.push(`<span class="jargon" tabindex="0" aria-describedby="${tipId}">${match}<span class="tip" role="tooltip" id="${tipId}">${tipText}</span></span>`);
             return `\x00JARGON${idx}\x00`;
         });
     }
@@ -1204,6 +1282,68 @@ function displayConfidence(fullText) {
 }
 
 // ─── Format Active Alerts as a clean list ───────────────────────────
+// Alert modal — data store keyed by index (avoids inline JSON / XSS)
+const ALERT_DATA = {};
+let alertIdx = 0;
+
+function showAlertModal(data) {
+    const overlay = document.getElementById('alert-modal-overlay');
+    const modal = overlay.querySelector('.alert-modal');
+    document.getElementById('alert-modal-title').textContent = data.headline;
+    const meta = [];
+    if (data.severity) meta.push(data.severity);
+    if (data.areaDesc) meta.push(data.areaDesc);
+    if (data.expires) {
+        try { meta.push('Expires ' + new Date(data.expires).toLocaleString()); } catch(e) { console.warn('Date parse error', e); }
+    }
+    document.getElementById('alert-modal-meta').textContent = meta.join(' · ');
+    let body = data.description || '';
+    if (data.instruction) body += '\n\n' + data.instruction;
+    document.getElementById('alert-modal-body').textContent = body;
+    overlay.classList.add('open');
+    // Focus trap: move focus into modal
+    document.getElementById('alert-modal-close').focus();
+}
+
+function closeAlertModal() {
+    document.getElementById('alert-modal-overlay').classList.remove('open');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('alert-modal-overlay');
+    if (!overlay) return;
+    document.getElementById('alert-modal-close').addEventListener('click', closeAlertModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAlertModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAlertModal(); });
+
+    // Focus trap within modal
+    overlay.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') return;
+        const focusable = overlay.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+
+    // Event delegation for alert links (avoids inline onclick / XSS)
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('[data-alert-idx]');
+        if (link) showAlertModal(ALERT_DATA[link.dataset.alertIdx]);
+    });
+
+    // Jargon tooltip tap-to-toggle for mobile
+    document.addEventListener('click', (e) => {
+        const jargon = e.target.closest('.jargon');
+        // Close all other open tooltips
+        document.querySelectorAll('.jargon.tip-open').forEach(el => {
+            if (el !== jargon) el.classList.remove('tip-open');
+        });
+        if (jargon) jargon.classList.toggle('tip-open');
+    });
+});
+
 function formatAlerts(text, alertMap) {
     // Split on alert types and format as list items
     let t = text;
@@ -1233,16 +1373,23 @@ function formatAlerts(text, alertMap) {
         if (/warning/i.test(item)) cls = 'alert-warning';
         else if (/watch/i.test(item)) cls = 'alert-watch';
         else if (/statement/i.test(item)) cls = 'alert-statement';
-        // Try to find a matching alert URL
-        let url = '';
+        // Severity icon for accessibility (not color-only)
+        const icon = /warning/i.test(item) ? '⚠️ ' : /watch/i.test(item) ? '👁️ ' : /statement/i.test(item) ? 'ℹ️ ' : '🔹 ';
+        // Try to find matching alert detail
+        let alertData = null;
         if (alertMap) {
-            for (const [event, link] of Object.entries(alertMap)) {
-                if (item.toLowerCase().includes(event.toLowerCase())) { url = link; break; }
+            for (const [event, data] of Object.entries(alertMap)) {
+                if (item.toLowerCase().includes(event.toLowerCase())) { alertData = data; break; }
             }
         }
-        const content = url
-            ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="alert-link">${item}</a>`
-            : item;
+        let content;
+        if (alertData) {
+            const idx = alertIdx++;
+            ALERT_DATA[idx] = alertData;
+            content = `<button class="alert-link" data-alert-idx="${idx}" aria-label="View details: ${item.replace(/"/g, '&quot;')}">${icon}${item}</button>`;
+        } else {
+            content = `${icon}${item}`;
+        }
         return `<li class="${cls}">${content}</li>`;
     });
 
@@ -1266,7 +1413,7 @@ function render(sections) {
     // Section nav — sanitize IDs for URL safety
     const safeId = (key) => key.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
     navEl.innerHTML = sections.map(s =>
-        `<a href="#section-${safeId(s.key)}">${s.key}</a>`
+        `<a href="#section-${safeId(s.key)}" aria-label="Jump to ${s.key} section">${s.key}</a>`
     ).join('');
 
     // Sections
@@ -1298,8 +1445,11 @@ function render(sections) {
 // ─── Fetch AFD ──────────────────────────────────────────────────────
 async function fetchAFD(office) {
     currentOffice = office;
+    const thisGen = ++fetchGeneration;
     const sectionsEl = document.getElementById('sections');
     sectionsEl.innerHTML = '<div class="loading">Loading forecast…</div>';
+    // Reset alert index for new fetch
+    alertIdx = 0;
 
     // Update footer office name
     const footerOffice = document.getElementById('footer-office');
@@ -1311,10 +1461,10 @@ async function fetchAFD(office) {
         try {
             const { time, prodData } = JSON.parse(cached);
             if (Date.now() - time < 15 * 60 * 1000) {
-                renderAFD(prodData, office);
+                if (thisGen === fetchGeneration) renderAFD(prodData, office);
                 return;
             }
-        } catch { /* stale cache, continue to fetch */ }
+        } catch(e) { console.warn('Cache parse error, refetching', e); }
     }
 
     try {
@@ -1322,6 +1472,7 @@ async function fetchAFD(office) {
             headers: { 'User-Agent': 'Plaincast/1.0 (plaincast.live)' }
         });
         if (!listRes.ok) throw new Error(`API error: ${listRes.status} ${listRes.statusText}`);
+        if (thisGen !== fetchGeneration) return; // stale request
         const listData = await listRes.json();
         const latest = listData['@graph']?.[0];
         if (!latest) throw new Error('No AFD found for this office');
@@ -1331,6 +1482,7 @@ async function fetchAFD(office) {
             headers: { 'User-Agent': 'Plaincast/1.0 (plaincast.live)' }
         });
         if (!prodRes.ok) throw new Error(`Product fetch error: ${prodRes.status}`);
+        if (thisGen !== fetchGeneration) return; // stale request
         const prodData = await prodRes.json();
 
         // Cache the result
@@ -1339,16 +1491,17 @@ async function fetchAFD(office) {
             prodData
         }));
 
-        renderAFD(prodData, office);
+        if (thisGen === fetchGeneration) renderAFD(prodData, office);
 
     } catch (err) {
+        if (thisGen !== fetchGeneration) return;
         // Try stale cache as fallback
         if (cached) {
             try {
                 const { prodData } = JSON.parse(cached);
                 renderAFD(prodData, office);
                 return;
-            } catch { /* give up */ }
+            } catch(e) { console.warn('Stale cache fallback failed', e); }
         }
         sectionsEl.innerHTML = `<div class="loading">Error loading forecast: ${err.message}</div>`;
         console.error(err);
@@ -1374,8 +1527,9 @@ async function renderAFD(prodData, office) {
     else if (diffHours < 24) ago = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
     else ago = `${Math.round(diffHours / 24)} day${Math.round(diffHours/24) !== 1 ? 's' : ''} ago`;
 
+    issueTimeDate = issueTime;
     document.getElementById('issue-time').textContent =
-        `Issued ${issueTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz, timeZoneName: 'short' })} — ${ago}`;
+        `Issued ${issueTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz, timeZoneName: 'short' })} - ${ago}`;
 
     // Parse sections
     const { sections } = parseSections(prodData.productText);
@@ -1412,7 +1566,31 @@ async function renderAFD(prodData, office) {
 const officeSelect = document.getElementById('office-select');
 officeSelect.addEventListener('change', () => fetchAFD(officeSelect.value));
 fetchAFD(officeSelect.value);
+
+// Auto-update "X minutes ago" every 60 seconds
+setInterval(() => {
+    if (!issueTimeDate) return;
+    const now = new Date();
+    const diffMs = now - issueTimeDate;
+    const diffMins = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    let ago = '';
+    if (diffMins < 60) ago = `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    else if (diffHours < 24) ago = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    else ago = `${Math.round(diffHours / 24)} day${Math.round(diffHours/24) !== 1 ? 's' : ''} ago`;
+    const el = document.getElementById('issue-time');
+    if (el) el.textContent = el.textContent.replace(/ - \d+.*$/, ` - ${ago}`);
+}, 60000);
 </script>
 
+<!-- Alert detail modal -->
+<div class="alert-modal-overlay" id="alert-modal-overlay">
+    <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="alert-modal-title">
+        <button class="alert-modal-close" id="alert-modal-close" aria-label="Close alert detail">&times;</button>
+        <h3 id="alert-modal-title"></h3>
+        <div class="alert-meta" id="alert-modal-meta"></div>
+        <div class="alert-body" id="alert-modal-body"></div>
+    </div>
+</div>
 </body>
 </html>

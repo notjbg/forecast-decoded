@@ -77,7 +77,7 @@ For the MVP, use a client-side approach:
 - Fetch latest AFD on page load, cache in sessionStorage
 
 ## Files to Create
-- public/index.html — the entire app (single file)
+- docs/index.html — the entire app (single file)
 - README.md — project description
 - That's it. Keep it dead simple.
 
