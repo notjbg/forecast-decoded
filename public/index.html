@@ -240,14 +240,37 @@
         .plain-col .alert-list {
             list-style: none;
             padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
         .plain-col .alert-list li {
-            padding: 0.5rem 0;
-            border-bottom: 1px solid var(--border);
-            font-size: 0.95rem;
+            font-family: var(--sans);
+            font-size: 0.82rem;
+            line-height: 1.5;
+            padding: 0.6rem 0.85rem;
+            border-radius: 6px;
+            border-left: 3px solid;
         }
-        .plain-col .alert-list li:last-child {
-            border-bottom: none;
+        .plain-col .alert-list li.alert-warning {
+            background: #fef2f2;
+            border-left-color: #dc2626;
+            color: #991b1b;
+        }
+        .plain-col .alert-list li.alert-watch {
+            background: #fff7ed;
+            border-left-color: #d97706;
+            color: #92400e;
+        }
+        .plain-col .alert-list li.alert-advisory {
+            background: #eff6ff;
+            border-left-color: #2563eb;
+            color: #1e40af;
+        }
+        .plain-col .alert-list li.alert-statement {
+            background: #f5f5f4;
+            border-left-color: #78716c;
+            color: #44403c;
         }
 
         /* Annotated column */
@@ -945,28 +968,39 @@ function translateToPlainEnglish(text) {
     t = t.trim();
 
     // ─── Bold pass: make key info skimmable ─────────────────────────
-    // Days of week and timeframes
-    t = t.replace(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/g, '<strong>$1</strong>');
-    t = t.replace(/\b(tonight|tonight through \w+|this morning|this afternoon|this evening|overnight)\b/gi, '<strong>$1</strong>');
-    t = t.replace(/\b(today)\b/gi, '<strong>$1</strong>');
+    // Helper: bold only first occurrence of each match
+    const boldSeen = new Set();
+    const boldFirst = (str, pattern) => {
+        return str.replace(pattern, (m) => {
+            const k = m.toLowerCase().trim();
+            if (boldSeen.has(k)) return m;
+            boldSeen.add(k);
+            return `<strong>${m}</strong>`;
+        });
+    };
 
-    // Temperatures and measurements
+    // Days of week — first occurrence only
+    t = boldFirst(t, /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/g);
+    // Timeframes — first occurrence only
+    t = boldFirst(t, /\b(tonight|this morning|this afternoon|this evening|overnight|today)\b/gi);
+
+    // Temperatures
     t = t.replace(/(\d{1,3})\s*(?:degrees?|°)\s*(?:F|fahrenheit)?/gi, '<strong>$1°</strong>');
-    t = t.replace(/\b(\d{1,3})\s*(?:mph|knots?)\b/gi, '<strong>$1 mph</strong>');
+    // Wind speeds
+    t = t.replace(/\b(\d{1,3})\s*(?:mph)\b/gi, '<strong>$1 mph</strong>');
 
-    // Ranges with "to" or hyphens + units: "4 to 8 inches", "1-2.5 inches", "10 to 15 ft"
-    t = t.replace(/\b(\d+(?:\.\d+)?)\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*(inches?|"|feet|ft)\b/gi,
-        (_, a, b, unit) => { const u = unit.startsWith('f') ? ' ft' : '"'; return `<strong>${a}–${b}${u}</strong>`; });
-    // Single number + units: "8 inches", "15 ft"
+    // Rainfall/snow ranges: "4 to 8 inches", "1-2.5 inches" (not ft — skip ceiling heights)
+    t = t.replace(/\b(\d+(?:\.\d+)?)\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*(inches?|")\b/gi,
+        (_, a, b) => `<strong>${a}–${b}"</strong>`);
+    // Single number + inches
     t = t.replace(/\b(\d+(?:\.\d+)?)\s*(inches?|")\b/gi, '<strong>$1"</strong>');
-    t = t.replace(/\b(\d+(?:\.\d+)?)\s*(feet|ft)\b/gi, '<strong>$1 ft</strong>');
-
-    // Worded ranges: "a half and one inch per hour", "half inch"
+    // Worded amounts
     t = t.replace(/\b((?:a\s+)?half(?:\s+and\s+one)?\s+inch(?:\s+per\s+hour)?)\b/gi, '<strong>$1</strong>');
 
-    // Hazard/warning language
-    t = t.replace(/\b(severe thunderstorms?|flash flood(?:ing)?|debris flows?|damaging winds?|heavy (?:mountain )?snow|high surf|coastal flood(?:ing)?|thunderstorms?)\b/gi, '<strong>$1</strong>');
-    t = t.replace(/\b(small craft advisory|gale warning|winter storm (?:watch|warning)|flood watch|wind advisory|high wind watch|high surf advisory|beach hazards? statement)\b/gi, '<strong>$1</strong>');
+    // Hazard terms — first occurrence only
+    t = boldFirst(t, /\b(severe thunderstorms?|flash flood(?:ing)?|debris flows?|damaging winds?|heavy (?:mountain )?snow|high surf|coastal flood(?:ing)?)\b/gi);
+    // Alert types — first occurrence only
+    t = boldFirst(t, /\b(small craft advisory|gale warning|winter storm (?:watch|warning)|flood watch|wind advisory|high wind watch|high surf advisory|beach hazards? statement)\b/gi);
 
     // Clean up any double-bolded from overlapping matches
     t = t.replace(/<strong><strong>/g, '<strong>');
@@ -1109,9 +1143,13 @@ function formatAlerts(text) {
 
     const items = matches.map(m => {
         let item = m.trim().replace(/\.\s*$/, '').replace(/^\.\s*/, '').trim();
-        // Capitalize first letter
         item = item.charAt(0).toUpperCase() + item.slice(1);
-        return `<li>${item}</li>`;
+        // Classify by severity
+        let cls = 'alert-advisory';
+        if (/warning/i.test(item)) cls = 'alert-warning';
+        else if (/watch/i.test(item)) cls = 'alert-watch';
+        else if (/statement/i.test(item)) cls = 'alert-statement';
+        return `<li class="${cls}">${item}</li>`;
     });
 
     return `<ul class="alert-list">${items.join('')}</ul>`;
