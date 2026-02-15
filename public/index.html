@@ -87,6 +87,47 @@
             line-height: 1.6;
         }
 
+        /* Confidence indicator */
+        .confidence {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem 1rem;
+        }
+        .confidence-box {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 0;
+        }
+        .confidence-label {
+            font-family: var(--sans);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+        .confidence-bar-wrap {
+            flex: 1;
+            max-width: 200px;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .confidence-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        .confidence-text {
+            font-family: var(--sans);
+            font-size: 0.8rem;
+            color: var(--text);
+            font-weight: 500;
+        }
+
         /* Section nav */
         .section-nav {
             max-width: 1200px;
@@ -273,6 +314,16 @@
     </div>
 </div>
 
+<div class="confidence" id="confidence-container" style="display:none">
+    <div class="confidence-box">
+        <div class="confidence-label">Forecaster Confidence</div>
+        <div class="confidence-bar-wrap">
+            <div class="confidence-bar" id="confidence-bar"></div>
+        </div>
+        <div class="confidence-text" id="confidence-text"></div>
+    </div>
+</div>
+
 <nav class="section-nav" id="section-nav"></nav>
 
 <div class="sections" id="sections">
@@ -280,9 +331,9 @@
 </div>
 
 <div class="footer">
-    <span>Data: <a href="https://www.weather.gov" target="_blank">National Weather Service</a></span>
-    <a href="" id="raw-link" target="_blank">View raw AFD</a>
-    <span style="margin-left:auto">Built by <a href="https://jonahberg.com" target="_blank">Jonah Berg</a></span>
+    <span>Data: <a href="https://www.weather.gov" target="_blank" rel="noopener noreferrer">NWS <span id="footer-office">LOX</span></a></span>
+    <a href="" id="raw-link" target="_blank" rel="noopener noreferrer">View raw AFD</a>
+    <span style="margin-left:auto">Built by <a href="https://jonahberg.com" target="_blank" rel="noopener noreferrer">Jonah Berg</a></span>
 </div>
 
 <script>
@@ -555,7 +606,24 @@ const GLOSSARY = {
     'fetch': 'Distance over water that wind blows — longer = bigger waves',
     'inland': 'Away from the coast, toward the interior',
     'coastal': 'Near the ocean shoreline',
+    'NW flow': 'Northwest flow — air moving from the northwest, often cool and dry',
+    'SW flow': 'Southwest flow — air moving from the southwest, often warm and moist',
+    'SE flow': 'Southeast flow — air from the southeast, can bring moisture',
+    'NE flow': 'Northeast flow — air from the northeast, often associated with offshore/Santa Ana winds',
 };
+
+// ─── Office timezone mapping ────────────────────────────────────────
+const OFFICE_TIMEZONES = {
+    'LOX': 'America/Los_Angeles',
+    'SGX': 'America/Los_Angeles',
+    'HNX': 'America/Los_Angeles',
+    'VEF': 'America/Los_Angeles',
+    'MTR': 'America/Los_Angeles',
+    'SEW': 'America/Los_Angeles',
+    'PQR': 'America/Los_Angeles',
+    'OKX': 'America/New_York',
+};
+let currentOffice = 'LOX';
 
 // ─── Section parsing ───────────────────────────────────────────────
 const SECTION_NAMES = {
@@ -777,19 +845,47 @@ function translateToPlainEnglish(text) {
         [/\bIVT\b/g, 'moisture transport'],
         [/\bPDS\b/g, 'particularly dangerous'],
         [/\bSWE\b/g, 'snow water content'],
+
+        // Previously leaked abbreviations
+        [/\bLI\b/g, 'lifted index'],
+        [/\bOFB\b/g, 'outflow boundary'],
+        [/\bFROPA\b/g, 'frontal passage'],
+        [/\bGS\b/g, 'ground stop'],
+        [/\bUTC\b/g, 'UTC'],
+        [/\bWFO\b/g, 'Weather Forecast Office'],
+        [/\bCWA\b/g, 'forecast area'],
+        [/\bRAOB\b/g, 'weather balloon data'],
+        [/\bMOS\b/g, 'model output statistics'],
+        [/\bNW\s+flow\b/gi, 'northwest flow'],
+        [/\bSW\s+flow\b/gi, 'southwest flow'],
+        [/\bSE\s+flow\b/gi, 'southeast flow'],
+        [/\bNE\s+flow\b/gi, 'northeast flow'],
     ];
 
     for (const [pat, rep] of abbrevs) {
         t = t.replace(pat, rep);
     }
 
-    // Convert Zulu time references: 18Z → 10 AM PST, also handle 1734Z
+    // Convert Zulu time references: 18Z → local time (DST-aware)
     t = t.replace(/\b(\d{2,4})Z\b/g, (_, h) => {
-        const utc = parseInt(h.length <= 2 ? h : h.substring(0, 2));
-        let pst = (utc - 8 + 24) % 24;
-        const ampm = pst >= 12 ? 'PM' : 'AM';
-        const hr12 = pst === 0 ? 12 : pst > 12 ? pst - 12 : pst;
-        return `${hr12} ${ampm} PST`;
+        const utcHour = parseInt(h.length <= 2 ? h : h.substring(0, 2));
+        const utcMin = h.length > 2 ? parseInt(h.substring(2)) : 0;
+        // Create a UTC date for today to get proper DST offset
+        const now = new Date();
+        const utcDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), utcHour, utcMin));
+        // Use the office timezone if available, fallback to America/Los_Angeles
+        const tz = OFFICE_TIMEZONES[currentOffice] || 'America/Los_Angeles';
+        try {
+            const local = utcDate.toLocaleString('en-US', { hour: 'numeric', minute: utcMin > 0 ? '2-digit' : undefined, timeZone: tz, timeZoneName: 'short' });
+            return local;
+        } catch {
+            // Fallback to simple offset
+            const offset = tz.includes('Eastern') ? -5 : tz.includes('Central') ? -6 : tz.includes('Mountain') ? -7 : -8;
+            let localHr = (utcHour + offset + 24) % 24;
+            const ampm = localHr >= 12 ? 'PM' : 'AM';
+            const hr12 = localHr === 0 ? 12 : localHr > 12 ? localHr - 12 : localHr;
+            return `${hr12} ${ampm}`;
+        }
     });
 
     // Clean up geopotential heights: "541 dam" → "a 541-dam"
@@ -845,13 +941,22 @@ function annotateText(text) {
     // Sort glossary keys by length desc so longer matches first
     const keys = Object.keys(GLOSSARY).sort((a, b) => b.length - a.length);
 
-    // Build regex - escape special chars in keys
+    // Use placeholder tokens to prevent nested replacement
+    const placeholders = [];
     for (const key of keys) {
         const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`\\b${escaped}\\b`, 'g');
         t = t.replace(regex, (match) => {
-            return `<span class="jargon">${match}<span class="tip">${GLOSSARY[key]}</span></span>`;
+            const idx = placeholders.length;
+            const tipText = GLOSSARY[key].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            placeholders.push(`<span class="jargon">${match}<span class="tip">${tipText}</span></span>`);
+            return `\x00JARGON${idx}\x00`;
         });
+    }
+
+    // Replace placeholders with actual HTML
+    for (let i = 0; i < placeholders.length; i++) {
+        t = t.replace(`\x00JARGON${i}\x00`, placeholders[i]);
     }
 
     return t;
@@ -869,6 +974,55 @@ function extractTakeaway(sections) {
     const takeaway = sentences.slice(0, 2).join(' ').trim();
     // Quick cleanup
     return translateToPlainEnglish(takeaway).replace(/<\/?p>/g, '');
+}
+
+// ─── Confidence indicator ────────────────────────────────────────────
+function displayConfidence(fullText) {
+    const container = document.getElementById('confidence-container');
+    const bar = document.getElementById('confidence-bar');
+    const text = document.getElementById('confidence-text');
+    const t = fullText.toLowerCase();
+
+    // Count uncertainty vs certainty language
+    const uncertainWords = [
+        'uncertain', 'uncertainty', 'low confidence', 'unclear', 'remain uncertain',
+        'possible', 'possibly', 'could', 'might', 'may', 'perhaps',
+        'slight chance', 'can\'t rule out', 'cannot rule out',
+        'tricky', 'challenging', 'difficult', 'complicated',
+        'spread', 'wide range', 'diverge', 'disagreement', 'inconsistent',
+        'low predictability', 'questionable', 'iffy', 'depends on',
+    ];
+    const certainWords = [
+        'high confidence', 'confident', 'certain', 'expected',
+        'will', 'likely', 'probable', 'increasing confidence',
+        'good agreement', 'consistent', 'consensus',
+        'strong signal', 'well-defined', 'increasingly likely',
+        'on track', 'remains on track',
+    ];
+
+    let uncertainCount = 0;
+    let certainCount = 0;
+    for (const w of uncertainWords) { const m = t.match(new RegExp(w, 'gi')); if (m) uncertainCount += m.length; }
+    for (const w of certainWords) { const m = t.match(new RegExp(w, 'gi')); if (m) certainCount += m.length; }
+
+    const total = uncertainCount + certainCount;
+    if (total === 0) { container.style.display = 'none'; return; }
+
+    // Score: 0 (all uncertain) to 100 (all certain)
+    const score = Math.round((certainCount / total) * 100);
+
+    // Map to label and color
+    let label, color;
+    if (score >= 75) { label = 'High'; color = '#16a34a'; }
+    else if (score >= 50) { label = 'Moderate'; color = '#2563eb'; }
+    else if (score >= 30) { label = 'Mixed'; color = '#d97706'; }
+    else { label = 'Low'; color = '#dc2626'; }
+
+    bar.style.width = `${score}%`;
+    bar.style.background = color;
+    text.textContent = label;
+    text.style.color = color;
+    container.style.display = '';
 }
 
 // ─── Format Active Alerts as a clean list ───────────────────────────
@@ -917,9 +1071,10 @@ function render(sections) {
         takeawayContainer.style.display = '';
     }
 
-    // Section nav
+    // Section nav — sanitize IDs for URL safety
+    const safeId = (key) => key.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
     navEl.innerHTML = sections.map(s =>
-        `<a href="#section-${s.key.replace(/\s/g, '-')}">${s.key}</a>`
+        `<a href="#section-${safeId(s.key)}">${s.key}</a>`
     ).join('');
 
     // Sections
@@ -932,7 +1087,7 @@ function render(sections) {
             plainHtml = translateToPlainEnglish(s.text);
         }
         return `
-        <div class="forecast-section" id="section-${s.key.replace(/\s/g, '-')}">
+        <div class="forecast-section" id="section-${safeId(s.key)}">
             <div class="section-title">${s.key}</div>
             <div class="columns">
                 <div>
@@ -950,62 +1105,97 @@ function render(sections) {
 
 // ─── Fetch AFD ──────────────────────────────────────────────────────
 async function fetchAFD(office) {
-    const loading = document.getElementById('loading');
+    currentOffice = office;
     const sectionsEl = document.getElementById('sections');
     sectionsEl.innerHTML = '<div class="loading">Loading forecast…</div>';
 
+    // Update footer office name
+    const footerOffice = document.getElementById('footer-office');
+    if (footerOffice) footerOffice.textContent = office;
+
+    // Check cache first (15 min TTL)
+    const cached = sessionStorage.getItem(`afd-${office}`);
+    if (cached) {
+        try {
+            const { time, prodData } = JSON.parse(cached);
+            if (Date.now() - time < 15 * 60 * 1000) {
+                renderAFD(prodData, office);
+                return;
+            }
+        } catch { /* stale cache, continue to fetch */ }
+    }
+
     try {
-        // First get list of products
         const listRes = await fetch(`https://api.weather.gov/products/types/AFD/locations/${office}`, {
             headers: { 'User-Agent': 'ForecastDecoded/1.0 (jonahberg.com)' }
         });
+        if (!listRes.ok) throw new Error(`API error: ${listRes.status} ${listRes.statusText}`);
         const listData = await listRes.json();
         const latest = listData['@graph']?.[0];
-        if (!latest) throw new Error('No AFD found');
+        if (!latest) throw new Error('No AFD found for this office');
 
-        // Fetch the actual product
         const prodUrl = latest['@id'] || `https://api.weather.gov/products/${latest.id}`;
         const prodRes = await fetch(prodUrl, {
             headers: { 'User-Agent': 'ForecastDecoded/1.0 (jonahberg.com)' }
         });
+        if (!prodRes.ok) throw new Error(`Product fetch error: ${prodRes.status}`);
         const prodData = await prodRes.json();
 
-        // Update raw link
-        document.getElementById('raw-link').href = prodUrl;
-
-        // Parse issue time
-        const issueTime = new Date(prodData.issuanceTime);
-        const now = new Date();
-        const diffMs = now - issueTime;
-        const diffHours = Math.round(diffMs / 3600000);
-        const diffMins = Math.round(diffMs / 60000);
-        let ago = '';
-        if (diffMins < 60) ago = `${diffMins} minutes ago`;
-        else if (diffHours < 24) ago = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-        else ago = `${Math.round(diffHours / 24)} day${Math.round(diffHours/24) !== 1 ? 's' : ''} ago`;
-
-        document.getElementById('issue-time').textContent =
-            `Issued ${issueTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })} — ${ago}`;
-
-        // Parse sections
-        const { sections } = parseSections(prodData.productText);
-        if (sections.length === 0) {
-            sectionsEl.innerHTML = '<div class="loading">Could not parse forecast sections.</div>';
-            return;
-        }
-
-        render(sections);
-
-        // Cache
+        // Cache the result
         sessionStorage.setItem(`afd-${office}`, JSON.stringify({
             time: Date.now(),
             prodData
         }));
 
+        renderAFD(prodData, office);
+
     } catch (err) {
+        // Try stale cache as fallback
+        if (cached) {
+            try {
+                const { prodData } = JSON.parse(cached);
+                renderAFD(prodData, office);
+                return;
+            } catch { /* give up */ }
+        }
         sectionsEl.innerHTML = `<div class="loading">Error loading forecast: ${err.message}</div>`;
         console.error(err);
     }
+}
+
+function renderAFD(prodData, office) {
+    const sectionsEl = document.getElementById('sections');
+
+    // Update raw link
+    const rawUrl = prodData['@id'] || `https://api.weather.gov/products/${prodData.id}`;
+    document.getElementById('raw-link').href = rawUrl;
+
+    // Parse issue time with office timezone
+    const tz = OFFICE_TIMEZONES[office] || 'America/Los_Angeles';
+    const issueTime = new Date(prodData.issuanceTime);
+    const now = new Date();
+    const diffMs = now - issueTime;
+    const diffHours = Math.round(diffMs / 3600000);
+    const diffMins = Math.round(diffMs / 60000);
+    let ago = '';
+    if (diffMins < 60) ago = `${diffMins} minutes ago`;
+    else if (diffHours < 24) ago = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    else ago = `${Math.round(diffHours / 24)} day${Math.round(diffHours/24) !== 1 ? 's' : ''} ago`;
+
+    document.getElementById('issue-time').textContent =
+        `Issued ${issueTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz, timeZoneName: 'short' })} — ${ago}`;
+
+    // Parse sections
+    const { sections } = parseSections(prodData.productText);
+    if (sections.length === 0) {
+        sectionsEl.innerHTML = '<div class="loading">Could not parse forecast sections.</div>';
+        return;
+    }
+
+    // Extract and display confidence
+    displayConfidence(prodData.productText);
+
+    render(sections);
 }
 
 // ─── Init ───────────────────────────────────────────────────────────
