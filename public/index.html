@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forecast Decoded</title>
+    <style>
+        /* Ultra-minimal editorial design */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-text: #2c3e50;
+            --color-text-light: #7f8c8d;
+            --color-blue: #3498db;
+            --color-blue-light: #ebf3fd;
+            --color-border: #ecf0f1;
+            --color-warning: #f39c12;
+            --color-danger: #e74c3c;
+            --color-success: #27ae60;
+            --font-serif: Georgia, 'Times New Roman', serif;
+            --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-serif);
+            line-height: 1.7;
+            color: var(--color-text);
+            background: #fefefe;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin: 3rem 0 1rem 0;
+            color: var(--color-text);
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 500;
+            margin: 2rem 0 1rem 0;
+            color: var(--color-text);
+        }
+
+        p {
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .location-selector {
+            margin: 1rem 0;
+        }
+
+        .location-selector select {
+            font-family: var(--font-sans);
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            background: white;
+            color: var(--color-text);
+        }
+
+        /* Mode Toggle */
+        .mode-toggle {
+            display: flex;
+            justify-content: center;
+            margin: 2rem 0 3rem 0;
+            gap: 0.5rem;
+        }
+
+        .mode-btn {
+            padding: 0.75rem 1.5rem;
+            border: 1px solid var(--color-border);
+            background: white;
+            color: var(--color-text-light);
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background: var(--color-blue);
+            color: white;
+            border-color: var(--color-blue);
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            color: var(--color-text-light);
+            padding: 4rem 0;
+            font-size: 1.1rem;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4,end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { color: transparent; text-shadow: .25em 0 0 transparent, .5em 0 0 transparent; }
+            40% { color: var(--color-text-light); text-shadow: .25em 0 0 transparent, .5em 0 0 transparent; }
+            60% { text-shadow: .25em 0 0 var(--color-text-light), .5em 0 0 transparent; }
+            80%, 100% { text-shadow: .25em 0 0 var(--color-text-light), .5em 0 0 var(--color-text-light); }
+        }
+
+        /* Error State */
+        .error {
+            background: #fdf2f2;
+            border: 1px solid #fed7d7;
+            color: #c53030;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        /* Issue Time */
+        .issue-time {
+            text-align: center;
+            color: var(--color-text-light);
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Key Takeaway */
+        .key-takeaway {
+            background: var(--color-blue-light);
+            border-left: 4px solid var(--color-blue);
+            padding: 1.5rem;
+            margin: 2rem 0 3rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .key-takeaway h3 {
+            margin: 0 0 0.5rem 0;
+            color: var(--color-blue);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .key-takeaway p {
+            margin: 0;
+            font-weight: 500;
+            color: var(--color-text);
+        }
+
+        /* Confidence Indicator */
+        .confidence-indicator {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 2rem 0;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-family: var(--font-sans);
+            font-size: 0.95rem;
+        }
+
+        .confidence-bar {
+            flex: 1;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .confidence-fill.high { background: var(--color-success); }
+        .confidence-fill.medium { background: var(--color-warning); }
+        .confidence-fill.low { background: var(--color-danger); }
+
+        /* Section Navigation */
+        .section-nav {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 2rem 0 3rem 0;
+            font-family: var(--font-sans);
+        }
+
+        .section-nav a {
+            color: var(--color-text-light);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .section-nav a:hover {
+            background: var(--color-blue-light);
+            color: var(--color-blue);
+        }
+
+        /* Content Sections */
+        .forecast-content {
+            margin: 3rem 0;
+        }
+
+        .forecast-section {
+            margin-bottom: 3rem;
+            scroll-margin-top: 2rem;
+        }
+
+        .forecast-section h2 {
+            color: var(--color-blue);
+            border-bottom: 2px solid var(--color-blue-light);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Plain English Mode */
+        .plain-english .forecast-text {
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+
+        /* Annotated Mode */
+        .annotated-mode .forecast-text {
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 6px;
+            border: 1px solid var(--color-border);
+        }
+
+        /* Jargon tooltips */
+        .jargon-term {
+            background: #fff3cd;
+            border-bottom: 1px dotted var(--color-warning);
+            cursor: help;
+            position: relative;
+        }
+
+        .jargon-term:hover {
+            background: #ffeaa7;
+        }
+
+        .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--color-text);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            line-height: 1.4;
+            width: 280px;
+            max-width: 90vw;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--color-text);
+        }
+
+        .jargon-term:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Warning callouts */
+        .weather-warning {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-left: 4px solid var(--color-danger);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 6px 6px 0;
+            font-weight: 600;
+        }
+
+        .weather-watch {
+            background: #fffbeb;
+            border: 1px solid #fed7aa;
+            border-left: 4px solid var(--color-warning);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 6px 6px 0;
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--color-border);
+            color: var(--color-text-light);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+        }
+
+        .footer a {
+            color: var(--color-blue);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 600px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .mode-toggle {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .section-nav {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .confidence-indicator {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+            }
+
+            .annotated-mode .forecast-text {
+                font-size: 0.85rem;
+                padding: 1rem;
+            }
+
+            .tooltip {
+                width: 250px;
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Hidden by default */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Forecast Decoded</h1>
+        <div class="location-selector">
+            <select id="location-select">
+                <option value="LOX">Los Angeles/Oxnard (LOX)</option>
+                <option value="SGX" disabled>San Diego (SGX) — Coming Soon</option>
+                <option value="MTR" disabled>San Francisco (MTR) — Coming Soon</option>
+                <option value="EKA" disabled>Eureka (EKA) — Coming Soon</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="mode-toggle">
+        <button class="mode-btn active" id="plain-english-btn">Plain English</button>
+        <button class="mode-btn" id="annotated-btn">Original + Annotations</button>
+    </div>
+
+    <div id="loading" class="loading">
+        Fetching latest forecast from NWS
+    </div>
+
+    <div id="error" class="error hidden">
+        Unable to load the latest forecast. Please try refreshing the page.
+    </div>
+
+    <div id="forecast-container" class="hidden">
+        <div class="issue-time" id="issue-time"></div>
+
+        <div class="key-takeaway" id="key-takeaway">
+            <h3>Key Takeaway</h3>
+            <p id="takeaway-text">Loading...</p>
+        </div>
+
+        <div class="confidence-indicator" id="confidence-indicator">
+            <span>Forecast Confidence:</span>
+            <div class="confidence-bar">
+                <div class="confidence-fill" id="confidence-fill"></div>
+            </div>
+            <span id="confidence-text">High</span>
+        </div>
+
+        <div class="section-nav" id="section-nav">
+            <!-- Navigation links will be populated dynamically -->
+        </div>
+
+        <div class="forecast-content" id="forecast-content">
+            <!-- Forecast sections will be populated here -->
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>
+            Data: <a href="#" id="raw-product-link" target="_blank">NWS Los Angeles/Oxnard</a> •
+            <a href="https://github.com/jmhb1/forecast-decoded">Built by Jonah Berg</a>
+        </p>
+    </div>
+
+    <script>
+        // Comprehensive jargon glossary
+        const JARGON_GLOSSARY = {
+            'dam': 'Decameters of geopotential height - a measure of atmospheric pressure at altitude',
+            'PWAT': 'Precipitable Water - total amount of water vapor in a column of atmosphere',
+            'PWATs': 'Precipitable Water - total amount of water vapor in a column of atmosphere',
+            'vort': 'Vorticity - measure of atmospheric rotation that helps predict storm development',
+            'vort lobe': 'Area of concentrated atmospheric rotation that can trigger storm formation',
+            '500mb': '500 millibar level (~18,000 ft) - key atmospheric level for weather pattern analysis',
+            '300mb': '300 millibar level (~30,000 ft) - jet stream level where high-speed winds flow',
+            '700mb': '700 millibar level (~10,000 ft) - important for moisture transport and precipitation',
+            '850mb': '850 millibar level (~5,000 ft) - key level for temperature advection',
+            'SCA': 'Small Craft Advisory - winds 20-33 knots and/or seas 7+ feet, hazardous for small boats',
+            'GALE': 'Gale Warning - winds 34-47 knots, dangerous for all vessels',
+            'MVFR': 'Marginal Visual Flight Rules - ceiling 1,000-3,000 ft or visibility 3-5 miles',
+            'IFR': 'Instrument Flight Rules - ceiling 500-1,000 ft or visibility 1-3 miles',
+            'LIFR': 'Low Instrument Flight Rules - ceiling below 500 ft or visibility under 1 mile',
+            'VFR': 'Visual Flight Rules - ceiling above 3,000 ft and visibility over 5 miles',
+            'TSTM': 'Thunderstorm - convective storm with lightning and thunder',
+            'chc': 'Chance - probability between 30-50%',
+            'csts': 'Coasts - coastal areas along the ocean',
+            'vlys': 'Valleys - low-lying areas between mountains or hills',
+            'mtns': 'Mountains - elevated terrain that affects weather patterns',
+            'trof': 'Trough - elongated area of low atmospheric pressure',
+            'QPF': 'Quantitative Precipitation Forecast - predicted amount of rain/snow',
+            'CAPE': 'Convective Available Potential Energy - measure of atmospheric instability',
+            'CIN': 'Convective Inhibition - atmospheric lid that suppresses thunderstorm development',
+            'LI': 'Lifted Index - measure of atmospheric stability; negative values indicate instability',
+            'OFB': 'Offshore Flow - wind blowing from land toward ocean',
+            'FROPA': 'Frontal Passage - when a weather front moves through an area',
+            'Z': 'Zulu time - UTC/GMT time used internationally for weather observations',
+            'UTC': 'Coordinated Universal Time - global time standard (GMT)',
+            'SFC': 'Surface - ground level weather conditions',
+            'BKN': 'Broken cloud layer - 5/8 to 7/8 sky coverage',
+            'OVC': 'Overcast - complete cloud coverage (8/8 of sky)',
+            'SCT': 'Scattered clouds - 3/8 to 4/8 sky coverage',
+            'FEW': 'Few clouds - 1/8 to 2/8 sky coverage',
+            'CLR': 'Clear skies - no cloud coverage',
+            'AGL': 'Above Ground Level - height measured from local terrain',
+            'MSL': 'Mean Sea Level - height measured from average sea level',
+            'KLAX': 'Los Angeles International Airport',
+            'KBUR': 'Burbank Airport',
+            'KLGB': 'Long Beach Airport',
+            'KSNA': 'John Wayne Airport (Orange County)',
+            'KONT': 'Ontario International Airport',
+            'KPMD': 'Palmdale Regional Airport',
+            'ensembles': 'Multiple computer model runs to assess forecast uncertainty',
+            'hi res': 'High resolution weather models with detailed local forecasts',
+            'TAF': 'Terminal Aerodrome Forecast - airport-specific weather forecast',
+            'NEXRAD': 'Weather radar network providing precipitation and storm data',
+            'GDP': 'Ground Delay Program - air traffic management during weather delays',
+            'GS': 'Ground Stop - temporary halt of flights due to weather or congestion',
+            'ASOS': 'Automated Surface Observing System - automated weather station',
+            'AWOS': 'Automated Weather Observing System - airport weather reporting',
+            'METAR': 'Aviation weather observation report',
+            'SIGMET': 'Significant weather advisory for aviation',
+            'AIRMET': 'Weather advisory for smaller aircraft',
+            'PIREP': 'Pilot weather report - conditions observed by aircraft',
+            'LLWS': 'Low Level Wind Shear - dangerous wind condition for aircraft',
+            'TEMPO': 'Temporary - conditions expected for less than half the forecast period',
+            'PROB': 'Probability - likelihood of weather conditions occurring',
+            'BECMG': 'Becoming - gradual change in weather conditions',
+            'RVR': 'Runway Visual Range - visibility along airport runway',
+            'FZRA': 'Freezing rain - supercooled raindrops that freeze on contact',
+            'FZDZ': 'Freezing drizzle - light freezing precipitation',
+            'PL': 'Ice pellets - small balls of ice that bounce when hitting ground',
+            'GR': 'Hail - ice balls formed in thunderstorm updrafts',
+            'BR': 'Mist - visibility 5/8 to 6 miles in water droplets',
+            'FG': 'Fog - visibility less than 5/8 mile in water droplets',
+            'HZ': 'Haze - reduced visibility due to fine particles in air',
+            'FU': 'Smoke - visibility reduced by combustion particles',
+            'DU': 'Dust - visibility reduced by suspended dust particles',
+            'SA': 'Sand - visibility reduced by suspended sand particles',
+            'VIRGA': 'Precipitation that evaporates before reaching ground',
+            'SCUD': 'Low, fast-moving clouds beneath main cloud layer',
+            'MAMMATOCUMULUS': 'Clouds with distinctive pouch-like formations hanging beneath',
+            'SUPERCELL': 'Rotating thunderstorm capable of producing tornadoes and large hail',
+            'DERECHO': 'Widespread windstorm with straight-line winds exceeding 58 mph',
+            'HABOOB': 'Dust storm with wall of dust advancing across landscape',
+            'FOEHN': 'Warm, dry wind descending from mountains (Santa Ana type)',
+            'CONVERGENCE': 'Area where air flows come together, often triggering storms',
+            'DIVERGENCE': 'Area where air flows spread apart, often suppressing storms',
+            'THICKNESS': 'Atmospheric layer depth, indicates temperature profile',
+            'THERMAL': 'Rising column of warm air used by gliders and birds',
+            'INVERSION': 'Layer where temperature increases with height, traps pollution',
+            'SUBSIDENCE': 'Sinking air motion that suppresses cloud formation',
+            'ADVECTION': 'Horizontal transport of air properties like temperature or moisture',
+            'OROGRAPHIC': 'Weather effects caused by mountains forcing air upward',
+            'ISOTHERM': 'Line of equal temperature on weather maps',
+            'ISOBAR': 'Line of equal pressure on weather maps',
+            'ANTICYCLONE': 'High pressure system with clockwise rotation (Northern Hemisphere)',
+            'CYCLONE': 'Low pressure system with counterclockwise rotation (Northern Hemisphere)',
+            'RIDGE': 'Extension of high pressure with generally fair weather',
+            'SHORTWAVE': 'Fast-moving disturbance in upper atmospheric flow',
+            'LONGWAVE': 'Slow-moving large-scale atmospheric pattern',
+            'TELECONNECTION': 'Climate patterns linking distant regions (like El Niño)',
+            'MOS': 'Model Output Statistics - statistical weather forecast guidance',
+            'NAM': 'North American Mesoscale weather model',
+            'GFS': 'Global Forecast System weather model',
+            'ECMWF': 'European Centre weather model, often most accurate',
+            'HRRR': 'High Resolution Rapid Refresh model for short-term forecasts',
+            'WRF': 'Weather Research and Forecasting model',
+            'SREF': 'Short Range Ensemble Forecast system'
+        };
+
+        // App state
+        let currentMode = 'plain-english';
+        let currentLocation = 'LOX';
+        let forecastData = null;
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeEventListeners();
+            loadForecast();
+        });
+
+        function initializeEventListeners() {
+            // Mode toggle buttons
+            document.getElementById('plain-english-btn').addEventListener('click', () => switchMode('plain-english'));
+            document.getElementById('annotated-btn').addEventListener('click', () => switchMode('annotated'));
+
+            // Location selector
+            document.getElementById('location-select').addEventListener('change', function() {
+                currentLocation = this.value;
+                loadForecast();
+            });
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+
+            // Update button states
+            const plainBtn = document.getElementById('plain-english-btn');
+            const annotatedBtn = document.getElementById('annotated-btn');
+
+            plainBtn.classList.toggle('active', mode === 'plain-english');
+            annotatedBtn.classList.toggle('active', mode === 'annotated');
+
+            // Update body class for styling
+            document.body.className = mode === 'annotated' ? 'annotated-mode' : 'plain-english';
+
+            // Re-render content if data exists
+            if (forecastData) {
+                renderForecast();
+            }
+        }
+
+        async function loadForecast() {
+            showLoading();
+
+            try {
+                const response = await fetch(`https://api.weather.gov/products/types/AFD/locations/${currentLocation}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data['@graph'] || data['@graph'].length === 0) {
+                    throw new Error('No forecast data available');
+                }
+
+                // Get the most recent forecast
+                const latestForecast = data['@graph'][0];
+                forecastData = {
+                    issuanceTime: latestForecast.issuanceTime,
+                    productText: latestForecast.productText
+                };
+
+                renderForecast();
+                hideLoading();
+
+            } catch (error) {
+                console.error('Error loading forecast:', error);
+                showError();
+                hideLoading();
+            }
+        }
+
+        function renderForecast() {
+            const container = document.getElementById('forecast-container');
+            const issueTimeEl = document.getElementById('issue-time');
+            const contentEl = document.getElementById('forecast-content');
+            const navEl = document.getElementById('section-nav');
+
+            // Parse the forecast data
+            const parsedData = parseForecast(forecastData.productText);
+
+            // Render issue time
+            const issueTime = new Date(forecastData.issuanceTime);
+            const now = new Date();
+            const hoursAgo = Math.round((now - issueTime) / (1000 * 60 * 60));
+            const timeString = issueTime.toLocaleString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                timeZoneName: 'short'
+            });
+
+            issueTimeEl.textContent = `Issued ${timeString} (${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago)`;
+
+            // Render key takeaway
+            renderKeyTakeaway(parsedData.synopsis);
+
+            // Render confidence indicator
+            renderConfidenceIndicator(forecastData.productText);
+
+            // Render navigation
+            renderSectionNav(parsedData.sections, navEl);
+
+            // Render content based on mode
+            if (currentMode === 'plain-english') {
+                renderPlainEnglish(parsedData.sections, contentEl);
+            } else {
+                renderAnnotated(parsedData.sections, contentEl);
+            }
+
+            // Update raw product link
+            document.getElementById('raw-product-link').href = `https://forecast.weather.gov/product.php?site=${currentLocation}&issuedby=${currentLocation}&product=AFD&format=txt&version=1&glossary=1`;
+
+            container.classList.remove('hidden');
+        }
+
+        function parseForecast(productText) {
+            const lines = productText.split('\n');
+            const sections = {};
+            let currentSection = null;
+            let synopsis = '';
+
+            // Section headers to look for
+            const sectionHeaders = {
+                'SYNOPSIS': 'synopsis',
+                'SHORT TERM': 'short-term',
+                'LONG TERM': 'long-term',
+                'AVIATION': 'aviation',
+                'MARINE': 'marine',
+                'BEACHES': 'beaches'
+            };
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+
+                // Check for section headers
+                const sectionMatch = Object.keys(sectionHeaders).find(header =>
+                    line.includes(header) && (line.startsWith('.') || line.startsWith(header))
+                );
+
+                if (sectionMatch) {
+                    currentSection = sectionHeaders[sectionMatch];
+                    sections[currentSection] = {
+                        title: sectionMatch,
+                        content: ''
+                    };
+                    continue;
+                }
+
+                // Add content to current section
+                if (currentSection && line && !line.startsWith('$$')) {
+                    sections[currentSection].content += line + '\n';
+                }
+
+                // Capture synopsis for key takeaway
+                if (currentSection === 'synopsis') {
+                    synopsis += line + ' ';
+                }
+            }
+
+            return { sections, synopsis: synopsis.trim() };
+        }
+
+        function renderKeyTakeaway(synopsis) {
+            const takeawayEl = document.getElementById('takeaway-text');
+
+            // Extract key takeaway from synopsis using simple heuristics
+            let takeaway = synopsis;
+
+            // Clean up the text
+            takeaway = takeaway.replace(/\.\.\./g, '');
+            takeaway = takeaway.replace(/\s+/g, ' ');
+            takeaway = takeaway.trim();
+
+            // Try to find the most important sentence (usually contains weather event keywords)
+            const sentences = takeaway.split(/[.!?]+/);
+            const keywordSentence = sentences.find(sentence => {
+                const lowerSentence = sentence.toLowerCase();
+                return lowerSentence.includes('storm') ||
+                       lowerSentence.includes('rain') ||
+                       lowerSentence.includes('wind') ||
+                       lowerSentence.includes('warning') ||
+                       lowerSentence.includes('watch') ||
+                       lowerSentence.includes('advisory') ||
+                       lowerSentence.includes('significant');
+            });
+
+            if (keywordSentence && keywordSentence.length > 20) {
+                takeaway = keywordSentence.trim() + '.';
+            } else if (sentences.length > 0 && sentences[0].length > 20) {
+                takeaway = sentences[0].trim() + '.';
+            }
+
+            // Limit length
+            if (takeaway.length > 200) {
+                takeaway = takeaway.substring(0, 200) + '...';
+            }
+
+            takeawayEl.textContent = takeaway || 'Check the detailed forecast below for current conditions.';
+        }
+
+        function renderConfidenceIndicator(productText) {
+            const fillEl = document.getElementById('confidence-fill');
+            const textEl = document.getElementById('confidence-text');
+
+            // Analyze text for confidence indicators
+            const lowerText = productText.toLowerCase();
+            let confidence = 'medium';
+            let confidenceScore = 60; // Default medium confidence
+
+            // High confidence indicators
+            const highConfidenceTerms = ['likely', 'expect', 'confident', 'good agreement', 'strong signal'];
+            const highConfidenceCount = highConfidenceTerms.reduce((count, term) =>
+                count + (lowerText.match(new RegExp(term, 'g')) || []).length, 0);
+
+            // Low confidence indicators
+            const lowConfidenceTerms = ['uncertain', 'possible', 'potential', 'may', 'could', 'perhaps', 'chance'];
+            const lowConfidenceCount = lowConfidenceTerms.reduce((count, term) =>
+                count + (lowerText.match(new RegExp(term, 'g')) || []).length, 0);
+
+            // Calculate confidence
+            if (highConfidenceCount > lowConfidenceCount + 2) {
+                confidence = 'high';
+                confidenceScore = 85;
+            } else if (lowConfidenceCount > highConfidenceCount + 3) {
+                confidence = 'low';
+                confidenceScore = 35;
+            }
+
+            fillEl.className = `confidence-fill ${confidence}`;
+            fillEl.style.width = `${confidenceScore}%`;
+            textEl.textContent = confidence.charAt(0).toUpperCase() + confidence.slice(1);
+        }
+
+        function renderSectionNav(sections, navEl) {
+            navEl.innerHTML = '';
+
+            Object.entries(sections).forEach(([key, section]) => {
+                const link = document.createElement('a');
+                link.href = `#${key}`;
+                link.textContent = section.title;
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    document.getElementById(key)?.scrollIntoView({ behavior: 'smooth' });
+                });
+                navEl.appendChild(link);
+            });
+        }
+
+        function renderPlainEnglish(sections, contentEl) {
+            contentEl.innerHTML = '';
+
+            Object.entries(sections).forEach(([key, section]) => {
+                const sectionEl = document.createElement('div');
+                sectionEl.className = 'forecast-section';
+                sectionEl.id = key;
+
+                const titleEl = document.createElement('h2');
+                titleEl.textContent = section.title;
+                sectionEl.appendChild(titleEl);
+
+                const textEl = document.createElement('div');
+                textEl.className = 'forecast-text';
+
+                // Apply plain English transformations
+                let content = translateToPlainEnglish(section.content);
+                textEl.innerHTML = content;
+
+                sectionEl.appendChild(textEl);
+                contentEl.appendChild(sectionEl);
+            });
+        }
+
+        function renderAnnotated(sections, contentEl) {
+            contentEl.innerHTML = '';
+
+            Object.entries(sections).forEach(([key, section]) => {
+                const sectionEl = document.createElement('div');
+                sectionEl.className = 'forecast-section';
+                sectionEl.id = key;
+
+                const titleEl = document.createElement('h2');
+                titleEl.textContent = section.title;
+                sectionEl.appendChild(titleEl);
+
+                const textEl = document.createElement('div');
+                textEl.className = 'forecast-text';
+
+                // Apply jargon annotations
+                let content = addJargonAnnotations(section.content);
+                textEl.innerHTML = content;
+
+                sectionEl.appendChild(textEl);
+                contentEl.appendChild(sectionEl);
+            });
+        }
+
+        function translateToPlainEnglish(text) {
+            let translated = text;
+
+            // Expand common abbreviations
+            const abbreviations = {
+                'chc': 'chance',
+                'csts': 'coasts',
+                'vlys': 'valleys',
+                'mtns': 'mountains',
+                'trof': 'trough',
+                'TSTM': 'thunderstorm',
+                'MVFR': 'marginal visual conditions',
+                'IFR': 'instrument flight conditions',
+                'LIFR': 'low instrument flight conditions',
+                'VFR': 'visual flight conditions',
+                'BKN': 'broken clouds',
+                'OVC': 'overcast',
+                'SCT': 'scattered clouds',
+                'FEW': 'few clouds',
+                'CLR': 'clear'
+            };
+
+            Object.entries(abbreviations).forEach(([abbrev, expansion]) => {
+                const regex = new RegExp(`\\b${abbrev}\\b`, 'gi');
+                translated = translated.replace(regex, expansion);
+            });
+
+            // Convert measurements
+            translated = translated.replace(/(\d+)\s*kt/gi, '$1 knots');
+            translated = translated.replace(/(\d+)\s*ft/gi, '$1 feet');
+            translated = translated.replace(/(\d+)\s*mb/gi, '$1 millibars');
+
+            // Convert ALL CAPS warnings to styled callouts
+            translated = translated.replace(/([A-Z\s]{10,}(?:WARNING|WATCH|ADVISORY)[A-Z\s]*)/g,
+                '<div class="weather-warning">$1</div>');
+
+            // Format paragraphs
+            const paragraphs = translated.split('\n\n').filter(p => p.trim());
+            return paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
+        }
+
+        function addJargonAnnotations(text) {
+            let annotated = text;
+
+            // Add tooltips for jargon terms
+            Object.entries(JARGON_GLOSSARY).forEach(([term, definition]) => {
+                const regex = new RegExp(`\\b${term}\\b`, 'gi');
+                annotated = annotated.replace(regex, (match) =>
+                    `<span class="jargon-term">${match}<span class="tooltip">${definition}</span></span>`
+                );
+            });
+
+            return annotated;
+        }
+
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('forecast-container').classList.add('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        function showError() {
+            document.getElementById('error').classList.remove('hidden');
+            document.getElementById('forecast-container').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
