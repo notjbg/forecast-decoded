@@ -12,6 +12,16 @@
     <meta name="google-site-verification" content="IdNCtGpFPAc0ZPT6T41Z-KgfP-AzHr7qfAn-7asX96Y">
     <link rel="canonical" href="https://plaincast.live">
     <script defer src="/_vercel/insights/script.js"></script>
+    <script>
+      // Apply theme before paint to prevent flash
+      (function() {
+        var stored = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (stored === 'dark' || (!stored && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
@@ -591,6 +601,112 @@
             flex-wrap: wrap;
         }
         .footer a { color: var(--text-light); }
+
+        /* Theme toggle */
+        .theme-toggle {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            color: var(--text-light);
+            transition: border-color 0.15s, color 0.15s;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .theme-toggle:hover {
+            border-color: var(--text-light);
+            color: var(--text);
+        }
+
+        /* ─── Dark mode ─── */
+        .dark {
+            --text: #e5e5e5;
+            --text-light: #a3a3a3;
+            --blue: #60a5fa;
+            --blue-light: rgba(37, 99, 235, 0.15);
+            --border: #2a2a2a;
+            --bg: #0d0d0d;
+        }
+        .dark body { background: #0d0d0d; }
+        .dark ::selection { background: rgba(255, 255, 255, 0.2); }
+        .dark .header select {
+            background: #1a1a1a;
+            color: #e5e5e5;
+            border-color: #2a2a2a;
+        }
+        .dark .takeaway-box {
+            background: rgba(37, 99, 235, 0.12);
+        }
+        .dark .plain-col .alert-list li.alert-warning {
+            background: rgba(220, 38, 38, 0.12);
+            border-left-color: #f87171;
+            color: #fca5a5;
+        }
+        .dark .plain-col .alert-list li.alert-watch {
+            background: rgba(217, 119, 6, 0.12);
+            border-left-color: #fbbf24;
+            color: #fcd34d;
+        }
+        .dark .plain-col .alert-list li.alert-advisory {
+            background: rgba(37, 99, 235, 0.12);
+            border-left-color: #60a5fa;
+            color: #93c5fd;
+        }
+        .dark .plain-col .alert-list li.alert-statement {
+            background: rgba(120, 113, 108, 0.12);
+            border-left-color: #78716c;
+            color: #a8a29e;
+        }
+        .dark .alert-link { color: #93c5fd; text-decoration-color: rgba(147, 197, 253, 0.4); }
+        .dark .alert-link:hover { text-decoration-color: #93c5fd; }
+        .dark .alert-modal {
+            background: #1a1a1a;
+            color: #e5e5e5;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        }
+        .dark .alert-modal-close { color: #a3a3a3; }
+        .dark .alert-modal-close:hover { color: #e5e5e5; }
+        .dark .alert-modal .alert-meta { color: #a3a3a3; }
+        .dark .alert-modal .alert-instruction { border-top-color: #2a2a2a; }
+        .dark .alert-modal-overlay { background: rgba(0,0,0,0.6); }
+        .dark .jargon {
+            background: rgba(202, 138, 4, 0.2);
+            border-bottom-color: #b45309;
+        }
+        .dark .jargon:hover { background: rgba(202, 138, 4, 0.3); }
+        .dark .jargon .tip {
+            background: #262626;
+            color: #e5e5e5;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        .dark .annotated-col { color: #a8a29e; }
+        .dark .confidence-bar-wrap { background: #2a2a2a; }
+        .dark .ai-toggle-btn {
+            background: #1a1a1a;
+            border-color: #2a2a2a;
+            color: #a3a3a3;
+        }
+        .dark .ai-toggle-btn:hover { border-color: #a3a3a3; color: #e5e5e5; }
+        .dark .ai-toggle-btn.active {
+            background: rgba(37, 99, 235, 0.15);
+            border-color: #60a5fa;
+            color: #60a5fa;
+        }
+        .dark .ai-loading { border-color: #2a2a2a; border-top-color: #60a5fa; }
+        .dark .section-nav a {
+            border-color: #2a2a2a;
+            color: #a3a3a3;
+        }
+        .dark .section-nav a:hover { color: #e5e5e5; border-color: #a3a3a3; }
+        .dark .plain-col .ai-translated { border-left-color: #60a5fa; }
+        .dark .footer { border-top-color: #2a2a2a; }
     </style>
 </head>
 <body>
@@ -598,6 +714,7 @@
 <div class="header">
     <div class="header-row">
         <h1>Plaincast</h1>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">☀️</button>
         <select id="office-select">
             <option value="LOX">Los Angeles (LOX)</option>
             <option value="OKX">New York (OKX)</option>
@@ -1818,6 +1935,27 @@ async function renderAFD(prodData, office) {
 const officeSelect = document.getElementById('office-select');
 officeSelect.addEventListener('change', () => fetchAFD(officeSelect.value));
 fetchAFD(officeSelect.value);
+
+// ─── Theme toggle ───────────────────────────────────────────────────
+(function() {
+    const toggle = document.getElementById('theme-toggle');
+    function isDark() { return document.documentElement.classList.contains('dark'); }
+    function updateIcon() { toggle.textContent = isDark() ? '🌙' : '☀️'; }
+    updateIcon();
+    toggle.addEventListener('click', () => {
+        const dark = !isDark();
+        document.documentElement.classList.toggle('dark', dark);
+        localStorage.setItem('theme', dark ? 'dark' : 'light');
+        updateIcon();
+    });
+    // Listen for system preference changes when no manual override
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            document.documentElement.classList.toggle('dark', e.matches);
+            updateIcon();
+        }
+    });
+})();
 
 // Auto-update "X minutes ago" every 60 seconds
 setInterval(() => {
