@@ -37,8 +37,8 @@ Synopsis, Short Term, Long Term, Aviation, Marine, Beaches, Fire Weather, and Ac
 ### ⚠️ Active Alerts
 Current watches, warnings, and advisories formatted as a clean, color-coded bullet list with severity icons. Click any alert to see the full NWS detail in a modal.
 
-### 🏢 19 NWS Offices
-Los Angeles, New York, Chicago, Houston, Phoenix, Philadelphia, Dallas/Fort Worth, San Antonio, San Diego, San Francisco, Miami, Atlanta, Washington DC, Boston, Denver, Seattle, Portland, Las Vegas, and Central California.
+### 🏢 31 NWS Offices
+Los Angeles, New York, Chicago, Houston, Phoenix, Philadelphia, Dallas/Fort Worth, San Antonio, San Diego, San Francisco, Miami, Atlanta, Washington DC, Boston, Denver, Seattle, Portland, Las Vegas, Central California, Sacramento, Albuquerque, Grand Junction, Salt Lake City, Cleveland, Detroit, Indianapolis, Minneapolis/Twin Cities, Raleigh, Jacksonville, Honolulu, and Anchorage.
 
 ---
 

@@ -72,7 +72,7 @@
             "Forecaster confidence indicator",
             "Zulu to local time conversion (DST-aware)",
             "Active weather alerts with full detail view",
-            "19 NWS forecast offices",
+            "31 NWS forecast offices",
             "Key takeaway extraction"
         ],
         "sameAs": [
@@ -111,7 +111,7 @@
                 "name": "Which NWS offices does Plaincast support?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Plaincast supports 19 NWS forecast offices including Los Angeles (LOX), New York (OKX), Chicago (LOT), Houston (HGX), Phoenix (PSR), San Francisco (MTR), Miami (MFL), Seattle (SEW), Denver (BOU), and more."
+                    "text": "Plaincast supports 31 NWS forecast offices including Los Angeles (LOX), New York (OKX), Chicago (LOT), Houston (HGX), Phoenix (PSR), San Francisco (MTR), Miami (MFL), Seattle (SEW), Denver (BOU), and more."
                 }
             },
             {
@@ -735,6 +735,18 @@
             <option value="PQR">Portland (PQR)</option>
             <option value="VEF">Las Vegas (VEF)</option>
             <option value="HNX">Central CA / Hanford (HNX)</option>
+            <option value="STO">Sacramento (STO)</option>
+            <option value="ABQ">Albuquerque (ABQ)</option>
+            <option value="GJT">Grand Junction (GJT)</option>
+            <option value="SLC">Salt Lake City (SLC)</option>
+            <option value="CLE">Cleveland (CLE)</option>
+            <option value="DTX">Detroit (DTX)</option>
+            <option value="IND">Indianapolis (IND)</option>
+            <option value="MPX">Minneapolis/Twin Cities (MPX)</option>
+            <option value="RAH">Raleigh (RAH)</option>
+            <option value="JAX">Jacksonville (JAX)</option>
+            <option value="HFO">Honolulu (HFO)</option>
+            <option value="AFC">Anchorage (AFC)</option>
         </select>
     </div>
     <div class="issue-time" id="issue-time"></div>
@@ -1057,6 +1069,7 @@ const OFFICE_TIMEZONES = {
     'SGX': 'America/Los_Angeles',
     'HNX': 'America/Los_Angeles',
     'MTR': 'America/Los_Angeles',
+    'STO': 'America/Los_Angeles',
     'SEW': 'America/Los_Angeles',
     'PQR': 'America/Los_Angeles',
     'VEF': 'America/Los_Angeles',
@@ -1066,12 +1079,23 @@ const OFFICE_TIMEZONES = {
     'MFL': 'America/New_York',
     'FFC': 'America/New_York',
     'LWX': 'America/New_York',
+    'CLE': 'America/New_York',
+    'RAH': 'America/New_York',
+    'JAX': 'America/New_York',
     'LOT': 'America/Chicago',
     'HGX': 'America/Chicago',
     'FWD': 'America/Chicago',
     'EWX': 'America/Chicago',
+    'MPX': 'America/Chicago',
     'PSR': 'America/Phoenix',
     'BOU': 'America/Denver',
+    'GJT': 'America/Denver',
+    'SLC': 'America/Denver',
+    'ABQ': 'America/Denver',
+    'DTX': 'America/Detroit',
+    'IND': 'America/Indiana/Indianapolis',
+    'HFO': 'Pacific/Honolulu',
+    'AFC': 'America/Anchorage',
 };
 let currentOffice = 'LOX';
 let fetchGeneration = 0; // race condition guard for rapid office switching
@@ -1079,22 +1103,31 @@ let issueTimeDate = null; // for auto-updating "X ago"
 
 // Office → state for alerts API
 const OFFICE_STATES = {
-    'LOX': 'CA', 'SGX': 'CA', 'HNX': 'CA', 'MTR': 'CA',
+    'LOX': 'CA', 'SGX': 'CA', 'HNX': 'CA', 'MTR': 'CA', 'STO': 'CA',
     'OKX': 'NY', 'PHI': 'PA', 'BOX': 'MA', 'LWX': 'VA',
-    'MFL': 'FL', 'FFC': 'GA',
+    'MFL': 'FL', 'FFC': 'GA', 'JAX': 'FL',
     'LOT': 'IL', 'HGX': 'TX', 'FWD': 'TX', 'EWX': 'TX',
     'PSR': 'AZ', 'BOU': 'CO',
     'SEW': 'WA', 'PQR': 'OR', 'VEF': 'NV',
+    'GJT': 'CO', 'SLC': 'UT', 'ABQ': 'NM',
+    'DTX': 'MI', 'IND': 'IN', 'MPX': 'MN',
+    'CLE': 'OH', 'RAH': 'NC',
+    'HFO': 'HI', 'AFC': 'AK',
 };
 
 // Office → sender name fragment for matching alerts
 const OFFICE_SENDER = {
     'LOX': 'Los Angeles', 'SGX': 'San Diego', 'HNX': 'Hanford', 'MTR': 'San Francisco',
+    'STO': 'Sacramento',
     'OKX': 'New York', 'PHI': 'Mount Holly', 'BOX': 'Boston', 'LWX': 'Baltimore',
-    'MFL': 'Miami', 'FFC': 'Peachtree',
+    'MFL': 'Miami', 'FFC': 'Peachtree', 'JAX': 'Jacksonville',
     'LOT': 'Chicago', 'HGX': 'Houston', 'FWD': 'Fort Worth', 'EWX': 'San Antonio',
     'PSR': 'Phoenix', 'BOU': 'Denver',
     'SEW': 'Seattle', 'PQR': 'Portland', 'VEF': 'Las Vegas',
+    'GJT': 'Grand Junction', 'SLC': 'Salt Lake City', 'ABQ': 'Albuquerque',
+    'DTX': 'Detroit', 'IND': 'Indianapolis', 'MPX': 'Twin Cities',
+    'CLE': 'Cleveland', 'RAH': 'Raleigh',
+    'HFO': 'Honolulu', 'AFC': 'Anchorage',
 };
 
 // Fetch live alerts and return map of event name → alert URL
@@ -1387,7 +1420,7 @@ function translateToPlainEnglish(text) {
         } catch(e) {
             console.warn('Timezone conversion failed', e);
             // Fallback: use IANA zone to determine standard offset
-            const stdOffsets = { 'America/New_York': -5, 'America/Chicago': -6, 'America/Denver': -7, 'America/Phoenix': -7, 'America/Los_Angeles': -8 };
+            const stdOffsets = { 'America/New_York': -5, 'America/Detroit': -5, 'America/Indiana/Indianapolis': -5, 'America/Chicago': -6, 'America/Denver': -7, 'America/Phoenix': -7, 'America/Los_Angeles': -8, 'America/Anchorage': -9, 'Pacific/Honolulu': -10 };
             const offset = stdOffsets[tz] || -8;
             let localHr = (utcHour + offset + 24) % 24;
             const ampm = localHr >= 12 ? 'PM' : 'AM';
