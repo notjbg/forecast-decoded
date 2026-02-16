@@ -1,3 +1,15 @@
 {
-  "outputDirectory": "docs"
+  "buildCommand": null,
+  "outputDirectory": "docs",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, s-maxage=3600, stale-while-revalidate=7200" }
+      ]
+    }
+  ]
 }

@@ -243,6 +243,59 @@
             font-weight: 500;
         }
 
+        /* AI translation toggle */
+        .ai-toggle {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .ai-toggle-btn {
+            font-family: var(--sans);
+            font-size: 0.8rem;
+            padding: 0.3rem 0.85rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text-light);
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .ai-toggle-btn:hover {
+            border-color: var(--text-light);
+            color: var(--text);
+        }
+        .ai-toggle-btn.active {
+            background: var(--blue-light);
+            border-color: var(--blue);
+            color: var(--blue);
+        }
+        .ai-toggle-label {
+            font-family: var(--sans);
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+        .ai-loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--border);
+            border-top-color: var(--blue);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .plain-col .ai-translated {
+            border-left: 2px solid var(--blue);
+            padding-left: 1rem;
+            margin-left: -1rem;
+        }
+
         /* Section nav */
         .section-nav {
             max-width: 1200px;
@@ -557,6 +610,13 @@
         </div>
         <div class="confidence-text" id="confidence-text"></div>
     </div>
+</div>
+
+<div class="ai-toggle">
+    <button class="ai-toggle-btn" id="ai-toggle" aria-label="Toggle AI-enhanced translation">
+        ✨ AI Translation
+    </button>
+    <span class="ai-toggle-label" id="ai-toggle-label">Regex mode (instant)</span>
 </div>
 
 <nav class="section-nav" id="section-nav"></nav>
@@ -1484,6 +1544,66 @@ function formatAlerts(text, alertMap) {
     return `<ul class="alert-list">${items.join('')}</ul>`;
 }
 
+// ─── AI Translation ─────────────────────────────────────────────────
+let aiMode = false;
+const aiCache = {}; // client-side cache keyed by text hash
+
+function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return hash.toString(36);
+}
+
+async function fetchAITranslation(text, section, office) {
+    const key = simpleHash(text);
+    if (aiCache[key]) return aiCache[key];
+
+    const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, section, office })
+    });
+    if (!res.ok) throw new Error('Translation failed');
+    const data = await res.json();
+    // Convert markdown bold to HTML
+    let html = data.translation
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .split(/\n\s*\n+/)
+        .filter(b => b.trim())
+        .map(b => `<p>${b.trim().replace(/\n/g, ' ')}</p>`)
+        .join('');
+    aiCache[key] = html;
+    return html;
+}
+
+async function translateSectionAI(sectionEl, text, sectionName) {
+    const plainCol = sectionEl.querySelector('.plain-col');
+    if (!plainCol) return;
+    // Show loading
+    const original = plainCol.innerHTML;
+    plainCol.dataset.regexHtml = original;
+    plainCol.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--text-light);font-family:var(--sans);font-size:0.85rem"><span class="ai-loading"></span> Translating with AI...</div>';
+    try {
+        const html = await fetchAITranslation(text, sectionName, currentOffice);
+        plainCol.innerHTML = `<div class="ai-translated">${html}</div>`;
+    } catch (e) {
+        console.warn('AI translation failed for', sectionName, e);
+        plainCol.innerHTML = original;
+    }
+}
+
+function revertSectionToRegex(sectionEl) {
+    const plainCol = sectionEl.querySelector('.plain-col');
+    if (plainCol && plainCol.dataset.regexHtml) {
+        plainCol.innerHTML = plainCol.dataset.regexHtml;
+    }
+}
+
+let currentSections = []; // store for re-translation
+
 // ─── Render ─────────────────────────────────────────────────────────
 function render(sections) {
     const sectionsEl = document.getElementById('sections');
@@ -1504,17 +1624,19 @@ function render(sections) {
         `<a href="#section-${safeId(s.key)}" aria-label="Jump to ${s.key} section">${s.key}</a>`
     ).join('');
 
+    // Store sections for AI re-translation
+    currentSections = sections;
+
     // Sections
     sectionsEl.innerHTML = sections.map(s => {
         let plainHtml;
         if (s.key === 'Active Alerts') {
-            // Format alerts as a clean bullet list with links
             plainHtml = formatAlerts(s.text, currentAlerts);
         } else {
             plainHtml = translateToPlainEnglish(s.text);
         }
         return `
-        <div class="forecast-section" id="section-${safeId(s.key)}">
+        <div class="forecast-section" id="section-${safeId(s.key)}" data-section-key="${s.key}">
             <div class="section-title">${s.key}</div>
             <div class="columns">
                 <div>
@@ -1650,9 +1772,39 @@ async function renderAFD(prodData, office) {
     });
 }
 
+// ─── AI Toggle ──────────────────────────────────────────────────────
+document.getElementById('ai-toggle').addEventListener('click', async function() {
+    aiMode = !aiMode;
+    const btn = this;
+    const label = document.getElementById('ai-toggle-label');
+
+    if (aiMode) {
+        btn.classList.add('active');
+        btn.innerHTML = '✨ AI Translation';
+        label.textContent = 'AI mode (Claude Haiku)';
+        // Translate all non-alert sections
+        const sectionEls = document.querySelectorAll('.forecast-section');
+        for (const el of sectionEls) {
+            const key = el.dataset.sectionKey;
+            if (key === 'Active Alerts') continue;
+            const section = currentSections.find(s => s.key === key);
+            if (section) translateSectionAI(el, section.text, key);
+        }
+    } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '✨ AI Translation';
+        label.textContent = 'Regex mode (instant)';
+        // Revert all sections
+        const sectionEls = document.querySelectorAll('.forecast-section');
+        for (const el of sectionEls) {
+            revertSectionToRegex(el);
+        }
+    }
+});
+
 // ─── Init ───────────────────────────────────────────────────────────
 const officeSelect = document.getElementById('office-select');
-officeSelect.addEventListener('change', () => fetchAFD(officeSelect.value));
+officeSelect.addEventListener('change', () => { aiMode = false; document.getElementById('ai-toggle').classList.remove('active'); document.getElementById('ai-toggle-label').textContent = 'Regex mode (instant)'; fetchAFD(officeSelect.value); });
 fetchAFD(officeSelect.value);
 
 // Auto-update "X minutes ago" every 60 seconds
