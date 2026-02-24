@@ -1,0 +1,3 @@
+Contact: https://github.com/notjbg/plaincast/issues
+Preferred-Languages: en
+Canonical: https://plaincast.live/.well-known/security.txt

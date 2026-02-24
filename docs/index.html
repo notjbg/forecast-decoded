@@ -11,6 +11,7 @@
     <meta property="og:locale" content="en_US">
     <meta name="google-site-verification" content="IdNCtGpFPAc0ZPT6T41Z-KgfP-AzHr7qfAn-7asX96Y">
     <link rel="canonical" href="https://plaincast.live">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌤️</text></svg>">
     <script defer src="/_vercel/insights/script.js"></script>
     <script>
       // Apply theme before paint to prevent flash
@@ -129,6 +130,36 @@
                     "@type": "Answer",
                     "text": "NWS meteorologists issue new Area Forecast Discussions 3-4 times per day, typically around 4 AM, 10 AM, 4 PM, and 10 PM local time. Plaincast automatically fetches the latest discussion when you load the page."
                 }
+            }
+        ]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "How to Read an NWS Area Forecast Discussion",
+        "description": "Learn how to read and understand the detailed weather forecasts written by National Weather Service meteorologists using Plaincast's AI translation.",
+        "step": [
+            {
+                "@type": "HowToStep",
+                "name": "Select your NWS office",
+                "text": "Choose your local NWS forecast office from the dropdown menu. Plaincast supports 31 offices across the United States."
+            },
+            {
+                "@type": "HowToStep",
+                "name": "Read the AI summary",
+                "text": "The left column shows a plain English summary of each forecast section, translated by Claude AI. Key details like temperatures, wind speeds, and dates are highlighted in bold."
+            },
+            {
+                "@type": "HowToStep",
+                "name": "Check the original with annotations",
+                "text": "The right column shows the original forecast text with 150+ meteorological jargon terms highlighted. Hover or tap any highlighted term to see its definition."
+            },
+            {
+                "@type": "HowToStep",
+                "name": "Review the key takeaway and confidence",
+                "text": "The key takeaway at the top summarizes the most important point. The confidence indicator shows how certain the forecaster is based on their language."
             }
         ]
     }
@@ -2017,12 +2048,19 @@ if (urlOffice && officeSelect.querySelector(`option[value="${urlOffice}"]`)) {
     officeSelect.value = urlOffice;
 }
 
+function updateTitle(office) {
+    const opt = officeSelect.querySelector(`option[value="${office}"]`);
+    const name = opt ? opt.textContent.replace(/\s*\([^)]+\)/, '') : office;
+    document.title = `${name} Forecast - Plaincast`;
+}
+
 officeSelect.addEventListener('change', () => {
     const office = officeSelect.value;
-    // Update URL without reload
+    // Update URL and title without reload
     const url = new URL(window.location);
     url.searchParams.set('office', office);
     history.pushState({}, '', url);
+    updateTitle(office);
     fetchAFD(office);
 });
 
@@ -2032,10 +2070,12 @@ window.addEventListener('popstate', () => {
     const office = params.get('office')?.toUpperCase();
     if (office && officeSelect.querySelector(`option[value="${office}"]`)) {
         officeSelect.value = office;
+        updateTitle(office);
         fetchAFD(office);
     }
 });
 
+updateTitle(officeSelect.value);
 fetchAFD(officeSelect.value);
 
 // ─── Theme toggle ───────────────────────────────────────────────────

@@ -11,12 +11,13 @@ Plaincast is a free web application at https://plaincast.live that translates Na
 - Highlights 150+ meteorological jargon terms with hover/tap tooltip definitions
 - Shows forecaster confidence level based on language analysis
 - Displays active weather alerts with full detail modals
+- Shareable URLs per office (e.g. https://plaincast.live/?office=OKX)
 
 ## Supported NWS Offices
-Los Angeles (LOX), New York (OKX), Chicago (LOT), Houston (HGX), Phoenix (PSR), Philadelphia (PHI), Dallas/Fort Worth (FWD), San Antonio (EWX), San Diego (SGX), San Francisco (MTR), Miami (MFL), Atlanta (FFC), Washington DC (LWX), Boston (BOX), Denver (BOU), Seattle (SEW), Portland (PQR), Las Vegas (VEF), Central California/Hanford (HNX)
+Los Angeles (LOX), New York (OKX), Chicago (LOT), Houston (HGX), Phoenix (PSR), Philadelphia (PHI), Dallas/Fort Worth (FWD), San Antonio (EWX), San Diego (SGX), San Francisco (MTR), Miami (MFL), Atlanta (FFC), Washington DC (LWX), Boston (BOX), Denver (BOU), Seattle (SEW), Portland (PQR), Las Vegas (VEF), Central California/Hanford (HNX), Sacramento (STO), Albuquerque (ABQ), Grand Junction (GJT), Salt Lake City (SLC), Cleveland (CLE), Detroit (DTX), Indianapolis (IND), Minneapolis/Twin Cities (MPX), Raleigh (RAH), Jacksonville (JAX), Honolulu (HFO), Anchorage (AFC)
 
 ## Technical Details
-- Single-file vanilla HTML/CSS/JS app (~1,800 lines)
+- Single-file vanilla HTML/CSS/JS app (~2,000 lines)
 - No frameworks, no build step, zero dependencies
 - NWS API (api.weather.gov) for forecast data, no API key needed
 - Vercel serverless function for Claude AI translation with caching
