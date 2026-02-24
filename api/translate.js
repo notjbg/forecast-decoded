@@ -4,6 +4,34 @@
 const cache = new Map();
 const CACHE_TTL = 3600 * 1000; // 1 hour
 
+// Rate limiting: per-IP sliding window
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 30; // max requests per window per IP
+
+function checkRateLimit(ip) {
+    const now = Date.now();
+    const entry = rateLimitMap.get(ip);
+    if (!entry) {
+        rateLimitMap.set(ip, { timestamps: [now] });
+        return true;
+    }
+    // Prune timestamps outside window
+    entry.timestamps = entry.timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+    if (entry.timestamps.length >= RATE_LIMIT_MAX) return false;
+    entry.timestamps.push(now);
+    return true;
+}
+
+// Periodically clean up stale rate limit entries
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of rateLimitMap) {
+        entry.timestamps = entry.timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+        if (entry.timestamps.length === 0) rateLimitMap.delete(ip);
+    }
+}, 5 * 60 * 1000);
+
 function hashText(text) {
     let hash = 0;
     for (let i = 0; i < text.length; i++) {
@@ -15,12 +43,22 @@ function hashText(text) {
 }
 
 export default async function handler(req, res) {
-    // CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // CORS — restrict to production domain
+    const allowedOrigins = ['https://plaincast.live', 'https://www.plaincast.live'];
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+    // Rate limiting
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+    if (!checkRateLimit(clientIp)) {
+        return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
 
     const { text, section, office } = req.body;
     if (!text || text.length < 20) return res.status(400).json({ error: 'Text too short' });
@@ -61,7 +99,7 @@ Rules:
                 'anthropic-version': '2023-06-01'
             },
             body: JSON.stringify({
-                model: 'claude-3-haiku-20240307',
+                model: 'claude-3-5-haiku-20241022',
                 max_tokens: 1024,
                 system: systemPrompt,
                 messages: [{ role: 'user', content: text }]

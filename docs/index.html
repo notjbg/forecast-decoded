@@ -136,6 +136,21 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--blue, #2563eb);
+            color: #fff;
+            padding: 0.5rem 1rem;
+            z-index: 1001;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 0.85rem;
+            text-decoration: none;
+            border-radius: 0 0 4px 0;
+        }
+        .skip-link:focus { top: 0; }
+
         :root {
             --text: #1c1917;
             --text-light: #78716c;
@@ -332,6 +347,9 @@
             animation: spin 0.6s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .ai-loading { animation: none; opacity: 0.6; }
+        }
         .plain-col .ai-translated {
             border-left: 2px solid var(--blue);
             padding-left: 1rem;
@@ -710,6 +728,8 @@
     </style>
 </head>
 <body>
+
+<a href="#sections" class="skip-link">Skip to forecast</a>
 
 <div class="header">
     <div class="header-row">
@@ -1240,6 +1260,20 @@ function parseSections(text) {
 }
 
 // ─── Plain English translation ─────────────────────────────────────
+// Shared NWS artifact cleanup used by both translation and alert formatting
+function stripNWSArtifacts(text) {
+    let t = text;
+    t = t.replace(/for\s+zones?\s+[\d\->]+/gi, '');
+    t = t.replace(/\(See\s+[A-Za-z]+\)/gi, '');
+    t = t.replace(/\(\s*\)/g, '');
+    t = t.replace(/\bCA\s*\.{1,3}\s*/g, '');
+    t = t.replace(/\bPZ\s*\.{1,3}\s*/g, '');
+    t = t.replace(/\b(?:See\s+)?(?:Lax|Cfw|Srf|Npw|Mww|Wsw|Ffa)[a-z]{2,8}\b\.?/gi, '');
+    t = t.replace(/\.\s*\.\s*/g, '. ');
+    t = t.replace(/\s{2,}/g, ' ');
+    return t.trim();
+}
+
 function translateToPlainEnglish(text) {
     let t = text;
 
@@ -1248,14 +1282,9 @@ function translateToPlainEnglish(text) {
 
     // Remove NWS product code references and "see the CFWLOX..." sentences
     t = t.replace(/,?\s*see\s+the\s+[A-Z]{3,12}\s+(?:and\s+[A-Z]{3,12}\s+)?products?\s+for\s+more\s+details\.?/gi, '.');
-    t = t.replace(/\b(?:See\s+)?(?:Lax|Cfw|Srf|Npw|Mww|Wsw|Ffa)[a-z]{2,8}\b\.?/gi, '');
 
-    // Remove zone number lists (e.g., "for zones 38-344-345-353...")
-    t = t.replace(/for\s+zones?\s+[\d\->]+/gi, '');
-
-    // Remove raw NWS product references in parens, and empty parens
-    t = t.replace(/\(See\s+[A-Za-z]+\)/gi, '');
-    t = t.replace(/\(\s*\)/g, '');
+    // Strip shared NWS artifacts
+    t = stripNWSArtifacts(t);
 
     // Convert ***Header*** to sub-section markers (before collapsing whitespace)
     t = t.replace(/\*{3}\s*([^*]+?)\s*\*{3}/g, '\n\n§§§$1§§§\n\n');
@@ -1444,11 +1473,7 @@ function translateToPlainEnglish(text) {
     // "ern" catch-all removed — too aggressive, collides with English words
 
     // Clean up artifacts from stripped content
-    t = t.replace(/\.\s*\.\s*/g, '. ');       // ". ." → "."
-    t = t.replace(/\s{2,}/g, ' ');
     t = t.replace(/^\.\s*/gm, '');
-    t = t.replace(/\bCA\.\s*/g, '');            // Strip state prefix "CA."
-    t = t.replace(/\bPZ\.\s*/g, '');            // Strip marine zone prefix "PZ."
     t = t.trim();
 
     // ─── Bold pass: make key info skimmable ─────────────────────────
@@ -1512,23 +1537,27 @@ function translateToPlainEnglish(text) {
 }
 
 // ─── Annotated text with jargon highlights ──────────────────────────
+// Precompile glossary regexes once at startup (sorted by length desc so longer matches first)
+const GLOSSARY_COMPILED = Object.keys(GLOSSARY)
+    .sort((a, b) => b.length - a.length)
+    .map(key => {
+        const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const tipText = GLOSSARY[key].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return { key, regex: new RegExp(`\\b${escaped}\\b`, 'g'), tipText };
+    });
+
 function annotateText(text) {
     // Escape HTML
     let t = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Sort glossary keys by length desc so longer matches first
-    const keys = Object.keys(GLOSSARY).sort((a, b) => b.length - a.length);
-
     // Use placeholder tokens to prevent nested replacement
     const placeholders = [];
     let jargonId = 0;
-    for (const key of keys) {
-        const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+    for (const { key, regex, tipText } of GLOSSARY_COMPILED) {
+        regex.lastIndex = 0; // reset stateful regex
         t = t.replace(regex, (match) => {
             const idx = placeholders.length;
             const tipId = `jargon-tip-${jargonId++}`;
-            const tipText = GLOSSARY[key].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             placeholders.push(`<span class="jargon" tabindex="0" aria-describedby="${tipId}">${match}<span class="tip" role="tooltip" id="${tipId}">${tipText}</span></span>`);
             return `\x00JARGON${idx}\x00`;
         });
@@ -1563,33 +1592,67 @@ function displayConfidence(fullText) {
     const text = document.getElementById('confidence-text');
     const t = fullText.toLowerCase();
 
-    // Count uncertainty vs certainty language
-    const uncertainWords = [
-        'uncertain', 'uncertainty', 'low confidence', 'unclear', 'remain uncertain',
-        'possible', 'possibly', 'could', 'might', 'may', 'perhaps',
-        'slight chance', 'can\'t rule out', 'cannot rule out',
-        'tricky', 'challenging', 'difficult', 'complicated',
-        'spread', 'wide range', 'diverge', 'disagreement', 'inconsistent',
-        'low predictability', 'questionable', 'iffy', 'depends on',
+    // Weighted phrases: multi-word explicit confidence language scores higher
+    // than single common words that appear in nearly every forecast
+    const uncertainPhrases = [
+        // Explicit confidence statements (weight 3)
+        { pattern: 'low confidence', weight: 3 },
+        { pattern: 'remain uncertain', weight: 3 },
+        { pattern: 'low predictability', weight: 3 },
+        { pattern: 'highly uncertain', weight: 3 },
+        // Strong uncertainty signals (weight 2)
+        { pattern: 'uncertainty', weight: 2 },
+        { pattern: 'uncertain', weight: 2 },
+        { pattern: 'unclear', weight: 2 },
+        { pattern: 'can\'t rule out', weight: 2 },
+        { pattern: 'cannot rule out', weight: 2 },
+        { pattern: 'wide range', weight: 2 },
+        { pattern: 'disagreement', weight: 2 },
+        { pattern: 'inconsistent', weight: 2 },
+        { pattern: 'diverge', weight: 2 },
+        { pattern: 'tricky', weight: 2 },
+        { pattern: 'questionable', weight: 2 },
+        { pattern: 'iffy', weight: 2 },
+        // Mild uncertainty (weight 1)
+        { pattern: 'slight chance', weight: 1 },
+        { pattern: 'challenging', weight: 1 },
+        { pattern: 'complicated', weight: 1 },
+        { pattern: 'depends on', weight: 1 },
+        { pattern: 'perhaps', weight: 1 },
+        { pattern: 'spread', weight: 1 },
     ];
-    const certainWords = [
-        'high confidence', 'confident', 'certain', 'expected',
-        'will', 'likely', 'probable', 'increasing confidence',
-        'good agreement', 'consistent', 'consensus',
-        'strong signal', 'well-defined', 'increasingly likely',
-        'on track', 'remains on track',
+    const certainPhrases = [
+        // Explicit confidence statements (weight 3)
+        { pattern: 'high confidence', weight: 3 },
+        { pattern: 'increasing confidence', weight: 3 },
+        { pattern: 'increasingly likely', weight: 3 },
+        { pattern: 'remains on track', weight: 3 },
+        { pattern: 'on track', weight: 2 },
+        // Strong certainty signals (weight 2)
+        { pattern: 'confident', weight: 2 },
+        { pattern: 'good agreement', weight: 2 },
+        { pattern: 'consensus', weight: 2 },
+        { pattern: 'consistent', weight: 2 },
+        { pattern: 'strong signal', weight: 2 },
+        { pattern: 'well-defined', weight: 2 },
     ];
 
-    let uncertainCount = 0;
-    let certainCount = 0;
-    for (const w of uncertainWords) { const m = t.match(new RegExp(w, 'gi')); if (m) uncertainCount += m.length; }
-    for (const w of certainWords) { const m = t.match(new RegExp(w, 'gi')); if (m) certainCount += m.length; }
+    let uncertainScore = 0;
+    let certainScore = 0;
+    for (const { pattern, weight } of uncertainPhrases) {
+        const m = t.match(new RegExp(pattern, 'gi'));
+        if (m) uncertainScore += m.length * weight;
+    }
+    for (const { pattern, weight } of certainPhrases) {
+        const m = t.match(new RegExp(pattern, 'gi'));
+        if (m) certainScore += m.length * weight;
+    }
 
-    const total = uncertainCount + certainCount;
+    const total = uncertainScore + certainScore;
     if (total === 0) { container.style.display = 'none'; return; }
 
     // Score: 0 (all uncertain) to 100 (all certain)
-    const score = Math.round((certainCount / total) * 100);
+    const score = Math.round((certainScore / total) * 100);
 
     // Map to label and color
     let label, color;
@@ -1669,17 +1732,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function formatAlerts(text, alertMap) {
-    // Split on alert types and format as list items
-    let t = text;
-    // Strip zone codes, product codes, state/marine prefixes
-    t = t.replace(/for\s+zones?\s+[\d\->]+/gi, '');
-    t = t.replace(/\(See\s+[A-Za-z]+\)/gi, '');
-    t = t.replace(/\(\s*\)/g, '');
-    t = t.replace(/\bCA\s*\.{1,3}\s*/g, '');
-    t = t.replace(/\bPZ\s*\.{1,3}\s*/g, '');
-    t = t.replace(/\b(?:Lax|Cfw|Srf|Npw|Mww|Wsw|Ffa)[a-z]{2,8}\b\.?/gi, '');
-    t = t.replace(/\.\s*\.\s*/g, '. ');
-    t = t.replace(/\s{2,}/g, ' ').trim();
+    // Strip NWS artifacts and format as list items
+    let t = stripNWSArtifacts(text);
 
     // Split on known alert types to create individual items
     const alertPattern = /((?:High Wind Watch|Wind Advisory|Flood Watch|High Surf Advisory|Beach Hazards? Statement|Winter Storm (?:Watch|Warning)|Small Craft Advisory|Gale Warning|Storm Warning|Red Flag Warning|Fire Weather Watch|Tornado Watch|Tornado Warning|Severe Thunderstorm (?:Watch|Warning)|Flash Flood Warning|Blizzard Warning|Ice Storm Warning|Freeze Warning|Frost Advisory|Dense Fog Advisory|Heat Advisory|Excessive Heat Warning)[^.]*\.?)/gi;
@@ -1721,7 +1775,6 @@ function formatAlerts(text, alertMap) {
 }
 
 // ─── AI Translation ─────────────────────────────────────────────────
-let aiMode = false;
 const aiCache = {}; // client-side cache keyed by text hash
 
 function simpleHash(str) {
@@ -1755,31 +1808,6 @@ async function fetchAITranslation(text, section, office) {
     return html;
 }
 
-async function translateSectionAI(sectionEl, text, sectionName) {
-    const plainCol = sectionEl.querySelector('.plain-col');
-    if (!plainCol) return;
-    // Show loading
-    const original = plainCol.innerHTML;
-    plainCol.dataset.regexHtml = original;
-    plainCol.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--text-light);font-family:var(--sans);font-size:0.85rem"><span class="ai-loading"></span> Translating with AI...</div>';
-    try {
-        const html = await fetchAITranslation(text, sectionName, currentOffice);
-        plainCol.innerHTML = `<div class="ai-translated">${html}</div>`;
-    } catch (e) {
-        console.warn('AI translation failed for', sectionName, e);
-        plainCol.innerHTML = original;
-    }
-}
-
-function revertSectionToRegex(sectionEl) {
-    const plainCol = sectionEl.querySelector('.plain-col');
-    if (plainCol && plainCol.dataset.regexHtml) {
-        plainCol.innerHTML = plainCol.dataset.regexHtml;
-    }
-}
-
-let currentSections = []; // store for re-translation
-
 // ─── Render ─────────────────────────────────────────────────────────
 function render(sections) {
     const sectionsEl = document.getElementById('sections');
@@ -1799,9 +1827,6 @@ function render(sections) {
     navEl.innerHTML = sections.map(s =>
         `<a href="#section-${safeId(s.key)}" aria-label="Jump to ${s.key} section">${s.key}</a>`
     ).join('');
-
-    // Store sections for AI translation
-    currentSections = sections;
 
     // Render sections with regex first (instant), then upgrade with AI
     sectionsEl.innerHTML = sections.map(s => {
@@ -1828,20 +1853,42 @@ function render(sections) {
         </div>`;
     }).join('');
 
-    // Fire off AI translations for all non-alert sections
-    for (const s of sections) {
-        if (s.key === 'Active Alerts') continue;
-        const el = document.getElementById(`section-${safeId(s.key)}`);
-        if (!el) continue;
-        const plainCol = el.querySelector('.plain-col');
-        fetchAITranslation(s.text, s.key, currentOffice).then(html => {
-            plainCol.innerHTML = html;
-        }).catch(err => {
-            console.warn('AI translation failed for', s.key, err);
-            // Fall back to regex
-            plainCol.innerHTML = translateToPlainEnglish(s.text);
-        });
+    // Fire off AI translations with concurrency limit (2 at a time)
+    const toTranslate = sections.filter(s => s.key !== 'Active Alerts');
+    const concurrency = 2;
+    let i = 0;
+    async function translateNext() {
+        while (i < toTranslate.length) {
+            const s = toTranslate[i++];
+            const el = document.getElementById(`section-${safeId(s.key)}`);
+            if (!el) continue;
+            const plainCol = el.querySelector('.plain-col');
+            try {
+                const html = await fetchAITranslation(s.text, s.key, currentOffice);
+                plainCol.innerHTML = html;
+            } catch (err) {
+                console.warn('AI translation failed for', s.key, err);
+                plainCol.innerHTML = `<div style="font-family:var(--sans);font-size:0.75rem;color:var(--text-light);margin-bottom:0.5rem;font-style:italic">AI summary unavailable — showing expanded version</div>` + translateToPlainEnglish(s.text);
+            }
+        }
     }
+    // Launch concurrent workers
+    const workers = [];
+    for (let w = 0; w < Math.min(concurrency, toTranslate.length); w++) {
+        workers.push(translateNext());
+    }
+    Promise.allSettled(workers);
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────
+function timeAgo(date) {
+    const diffMs = Date.now() - date;
+    const diffMins = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    const days = Math.round(diffHours / 24);
+    return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
 // ─── Fetch AFD ──────────────────────────────────────────────────────
@@ -1850,8 +1897,9 @@ async function fetchAFD(office) {
     const thisGen = ++fetchGeneration;
     const sectionsEl = document.getElementById('sections');
     sectionsEl.innerHTML = '<div class="loading">Loading forecast…</div>';
-    // Reset alert index for new fetch
+    // Reset alert state for new fetch
     alertIdx = 0;
+    for (const k of Object.keys(ALERT_DATA)) delete ALERT_DATA[k];
 
     // Update footer office name
     const footerOffice = document.getElementById('footer-office');
@@ -1905,7 +1953,11 @@ async function fetchAFD(office) {
                 return;
             } catch(e) { console.warn('Stale cache fallback failed', e); }
         }
-        sectionsEl.innerHTML = `<div class="loading">Error loading forecast: ${err.message}</div>`;
+        const errDiv = document.createElement('div');
+        errDiv.className = 'loading';
+        errDiv.textContent = `Error loading forecast: ${err.message}`;
+        sectionsEl.innerHTML = '';
+        sectionsEl.appendChild(errDiv);
         console.error(err);
     }
 }
@@ -1920,18 +1972,9 @@ async function renderAFD(prodData, office) {
     // Parse issue time with office timezone
     const tz = OFFICE_TIMEZONES[office] || 'America/Los_Angeles';
     const issueTime = new Date(prodData.issuanceTime);
-    const now = new Date();
-    const diffMs = now - issueTime;
-    const diffHours = Math.round(diffMs / 3600000);
-    const diffMins = Math.round(diffMs / 60000);
-    let ago = '';
-    if (diffMins < 60) ago = `${diffMins} minutes ago`;
-    else if (diffHours < 24) ago = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    else ago = `${Math.round(diffHours / 24)} day${Math.round(diffHours/24) !== 1 ? 's' : ''} ago`;
-
     issueTimeDate = issueTime;
     document.getElementById('issue-time').textContent =
-        `Issued ${issueTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz, timeZoneName: 'short' })} - ${ago}`;
+        `Issued ${issueTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz, timeZoneName: 'short' })} - ${timeAgo(issueTime)}`;
 
     // Parse sections
     const { sections } = parseSections(prodData.productText);
@@ -1966,7 +2009,33 @@ async function renderAFD(prodData, office) {
 
 // ─── Init ───────────────────────────────────────────────────────────
 const officeSelect = document.getElementById('office-select');
-officeSelect.addEventListener('change', () => fetchAFD(officeSelect.value));
+
+// Support ?office= URL parameter for shareable links
+const urlParams = new URLSearchParams(window.location.search);
+const urlOffice = urlParams.get('office')?.toUpperCase();
+if (urlOffice && officeSelect.querySelector(`option[value="${urlOffice}"]`)) {
+    officeSelect.value = urlOffice;
+}
+
+officeSelect.addEventListener('change', () => {
+    const office = officeSelect.value;
+    // Update URL without reload
+    const url = new URL(window.location);
+    url.searchParams.set('office', office);
+    history.pushState({}, '', url);
+    fetchAFD(office);
+});
+
+// Handle browser back/forward
+window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const office = params.get('office')?.toUpperCase();
+    if (office && officeSelect.querySelector(`option[value="${office}"]`)) {
+        officeSelect.value = office;
+        fetchAFD(office);
+    }
+});
+
 fetchAFD(officeSelect.value);
 
 // ─── Theme toggle ───────────────────────────────────────────────────
@@ -1993,16 +2062,8 @@ fetchAFD(officeSelect.value);
 // Auto-update "X minutes ago" every 60 seconds
 setInterval(() => {
     if (!issueTimeDate) return;
-    const now = new Date();
-    const diffMs = now - issueTimeDate;
-    const diffMins = Math.round(diffMs / 60000);
-    const diffHours = Math.round(diffMs / 3600000);
-    let ago = '';
-    if (diffMins < 60) ago = `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
-    else if (diffHours < 24) ago = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    else ago = `${Math.round(diffHours / 24)} day${Math.round(diffHours/24) !== 1 ? 's' : ''} ago`;
     const el = document.getElementById('issue-time');
-    if (el) el.textContent = el.textContent.replace(/ - \d+.*$/, ` - ${ago}`);
+    if (el) el.textContent = el.textContent.replace(/ - \d+.*$/, ` - ${timeAgo(issueTimeDate)}`);
 }, 60000);
 </script>
 
