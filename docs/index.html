@@ -767,37 +767,92 @@
         <h1>Plaincast</h1>
         <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">☀️</button>
         <select id="office-select">
-            <option value="LOX">Los Angeles (LOX)</option>
-            <option value="OKX">New York (OKX)</option>
-            <option value="LOT">Chicago (LOT)</option>
-            <option value="HGX">Houston (HGX)</option>
-            <option value="PSR">Phoenix (PSR)</option>
-            <option value="PHI">Philadelphia (PHI)</option>
-            <option value="FWD">Dallas / Fort Worth (FWD)</option>
-            <option value="EWX">San Antonio (EWX)</option>
-            <option value="SGX">San Diego (SGX)</option>
-            <option value="MTR">San Francisco (MTR)</option>
-            <option value="MFL">Miami (MFL)</option>
-            <option value="FFC">Atlanta (FFC)</option>
-            <option value="LWX">Washington, DC (LWX)</option>
-            <option value="BOX">Boston (BOX)</option>
-            <option value="BOU">Denver (BOU)</option>
-            <option value="SEW">Seattle (SEW)</option>
-            <option value="PQR">Portland (PQR)</option>
-            <option value="VEF">Las Vegas (VEF)</option>
-            <option value="HNX">Central CA / Hanford (HNX)</option>
-            <option value="STO">Sacramento (STO)</option>
-            <option value="ABQ">Albuquerque (ABQ)</option>
-            <option value="GJT">Grand Junction (GJT)</option>
-            <option value="SLC">Salt Lake City (SLC)</option>
-            <option value="CLE">Cleveland (CLE)</option>
-            <option value="DTX">Detroit (DTX)</option>
-            <option value="IND">Indianapolis (IND)</option>
-            <option value="MPX">Minneapolis/Twin Cities (MPX)</option>
-            <option value="RAH">Raleigh (RAH)</option>
-            <option value="JAX">Jacksonville (JAX)</option>
-            <option value="HFO">Honolulu (HFO)</option>
-            <option value="AFC">Anchorage (AFC)</option>
+            <optgroup label="Northeast">
+                <option value="OKX">New York (OKX)</option>
+                <option value="BOX">Boston (BOX)</option>
+                <option value="PHI">Philadelphia (PHI)</option>
+                <option value="LWX">Washington, DC (LWX)</option>
+                <option value="PBZ">Pittsburgh (PBZ)</option>
+                <option value="BUF">Buffalo (BUF)</option>
+                <option value="RAH">Raleigh (RAH)</option>
+                <option value="CHS">Charleston, SC (CHS)</option>
+            </optgroup>
+            <optgroup label="Southeast">
+                <option value="FFC">Atlanta (FFC)</option>
+                <option value="MFL">Miami (MFL)</option>
+                <option value="JAX">Jacksonville (JAX)</option>
+                <option value="TBW">Tampa Bay (TBW)</option>
+                <option value="BMX">Birmingham (BMX)</option>
+                <option value="OHX">Nashville (OHX)</option>
+                <option value="MRX">Morristown (MRX)</option>
+                <option value="JAN">Jackson, MS (JAN)</option>
+            </optgroup>
+            <optgroup label="Midwest">
+                <option value="LOT">Chicago (LOT)</option>
+                <option value="DTX">Detroit (DTX)</option>
+                <option value="IND">Indianapolis (IND)</option>
+                <option value="CLE">Cleveland (CLE)</option>
+                <option value="ILN">Cincinnati (ILN)</option>
+                <option value="MKX">Milwaukee (MKX)</option>
+                <option value="GRR">Grand Rapids (GRR)</option>
+                <option value="LSX">St. Louis (LSX)</option>
+                <option value="EAX">Kansas City (EAX)</option>
+                <option value="DMX">Des Moines (DMX)</option>
+            </optgroup>
+            <optgroup label="Northern Plains">
+                <option value="MPX">Minneapolis / Twin Cities (MPX)</option>
+                <option value="DLH">Duluth (DLH)</option>
+                <option value="FSD">Sioux Falls (FSD)</option>
+                <option value="BIS">Bismarck (BIS)</option>
+                <option value="OAX">Omaha (OAX)</option>
+                <option value="FGF">Grand Forks (FGF)</option>
+            </optgroup>
+            <optgroup label="South Central">
+                <option value="FWD">Dallas / Fort Worth (FWD)</option>
+                <option value="HGX">Houston (HGX)</option>
+                <option value="EWX">San Antonio (EWX)</option>
+                <option value="OUN">Oklahoma City (OUN)</option>
+                <option value="TSA">Tulsa (TSA)</option>
+                <option value="LZK">Little Rock (LZK)</option>
+                <option value="LIX">New Orleans (LIX)</option>
+                <option value="SHV">Shreveport (SHV)</option>
+                <option value="LCH">Lake Charles (LCH)</option>
+            </optgroup>
+            <optgroup label="Rockies & Mountain West">
+                <option value="BOU">Denver (BOU)</option>
+                <option value="PUB">Pueblo (PUB)</option>
+                <option value="GJT">Grand Junction (GJT)</option>
+                <option value="SLC">Salt Lake City (SLC)</option>
+                <option value="BOI">Boise (BOI)</option>
+                <option value="BYZ">Billings (BYZ)</option>
+                <option value="MSO">Missoula (MSO)</option>
+                <option value="RIW">Riverton (RIW)</option>
+            </optgroup>
+            <optgroup label="Southwest">
+                <option value="PSR">Phoenix (PSR)</option>
+                <option value="VEF">Las Vegas (VEF)</option>
+                <option value="TWC">Tucson (TWC)</option>
+                <option value="FGZ">Flagstaff (FGZ)</option>
+                <option value="ABQ">Albuquerque (ABQ)</option>
+                <option value="EPZ">El Paso (EPZ)</option>
+            </optgroup>
+            <optgroup label="Pacific">
+                <option value="LOX">Los Angeles (LOX)</option>
+                <option value="SGX">San Diego (SGX)</option>
+                <option value="MTR">San Francisco (MTR)</option>
+                <option value="STO">Sacramento (STO)</option>
+                <option value="HNX">Central CA / Hanford (HNX)</option>
+                <option value="EKA">Eureka (EKA)</option>
+                <option value="SEW">Seattle (SEW)</option>
+                <option value="PQR">Portland (PQR)</option>
+                <option value="MFR">Medford (MFR)</option>
+                <option value="OTX">Spokane (OTX)</option>
+            </optgroup>
+            <optgroup label="Alaska & Pacific Islands">
+                <option value="AFC">Anchorage (AFC)</option>
+                <option value="AFG">Fairbanks (AFG)</option>
+                <option value="HFO">Honolulu (HFO)</option>
+            </optgroup>
         </select>
     </div>
     <div class="issue-time" id="issue-time"></div>
