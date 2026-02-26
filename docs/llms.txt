@@ -5,7 +5,7 @@
 Plaincast is a free web application at https://plaincast.live that translates National Weather Service Area Forecast Discussions (AFDs) into plain English using Anthropic's Claude AI.
 
 ## What it does
-- Fetches the latest Area Forecast Discussion from the NWS API for any of 31 supported offices
+- Fetches the latest Area Forecast Discussion from the NWS API for any of 68 supported offices
 - Uses Claude (Haiku) to summarize each section into natural, readable prose
 - Displays the AI summary side-by-side with the original annotated forecast
 - Highlights 150+ meteorological jargon terms with hover/tap tooltip definitions
@@ -13,8 +13,25 @@ Plaincast is a free web application at https://plaincast.live that translates Na
 - Displays active weather alerts with full detail modals
 - Shareable URLs per office (e.g. https://plaincast.live/?office=OKX)
 
-## Supported NWS Offices
-Los Angeles (LOX), New York (OKX), Chicago (LOT), Houston (HGX), Phoenix (PSR), Philadelphia (PHI), Dallas/Fort Worth (FWD), San Antonio (EWX), San Diego (SGX), San Francisco (MTR), Miami (MFL), Atlanta (FFC), Washington DC (LWX), Boston (BOX), Denver (BOU), Seattle (SEW), Portland (PQR), Las Vegas (VEF), Central California/Hanford (HNX), Sacramento (STO), Albuquerque (ABQ), Grand Junction (GJT), Salt Lake City (SLC), Cleveland (CLE), Detroit (DTX), Indianapolis (IND), Minneapolis/Twin Cities (MPX), Raleigh (RAH), Jacksonville (JAX), Honolulu (HFO), Anchorage (AFC)
+## Supported NWS Offices (68, organized by region)
+
+**Northeast:** New York (OKX), Boston (BOX), Philadelphia (PHI), Washington DC (LWX), Pittsburgh (PBZ), Buffalo (BUF), Raleigh (RAH), Charleston SC (CHS)
+
+**Southeast:** Atlanta (FFC), Miami (MFL), Jacksonville (JAX), Tampa Bay (TBW), Birmingham (BMX), Nashville (OHX), Morristown (MRX), Jackson MS (JAN)
+
+**Midwest:** Chicago (LOT), Detroit (DTX), Indianapolis (IND), Cleveland (CLE), Cincinnati (ILN), Milwaukee (MKX), Grand Rapids (GRR), St. Louis (LSX), Kansas City (EAX), Des Moines (DMX)
+
+**Northern Plains:** Minneapolis/Twin Cities (MPX), Duluth (DLH), Sioux Falls (FSD), Bismarck (BIS), Omaha (OAX), Grand Forks (FGF)
+
+**South Central:** Dallas/Fort Worth (FWD), Houston (HGX), San Antonio (EWX), Oklahoma City (OUN), Tulsa (TSA), Little Rock (LZK), New Orleans (LIX), Shreveport (SHV), Lake Charles (LCH)
+
+**Rockies & Mountain West:** Denver (BOU), Pueblo (PUB), Grand Junction (GJT), Salt Lake City (SLC), Boise (BOI), Billings (BYZ), Missoula (MSO), Riverton (RIW)
+
+**Southwest:** Phoenix (PSR), Las Vegas (VEF), Tucson (TWC), Flagstaff (FGZ), Albuquerque (ABQ), El Paso (EPZ)
+
+**Pacific:** Los Angeles (LOX), San Diego (SGX), San Francisco (MTR), Sacramento (STO), Central California/Hanford (HNX), Eureka (EKA), Seattle (SEW), Portland (PQR), Medford (MFR), Spokane (OTX)
+
+**Alaska & Pacific Islands:** Anchorage (AFC), Fairbanks (AFG), Honolulu (HFO)
 
 ## Technical Details
 - Single-file vanilla HTML/CSS/JS app (~2,000 lines)
